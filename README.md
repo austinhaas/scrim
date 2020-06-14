@@ -58,7 +58,7 @@ git clone git@github.com:austinhaas/scrim.git
 ```
 ## Usage
 
-Use `C-h C-m` in a buffer to see keybindings.
+Use `C-h m` in a buffer to see keybindings.
 
 ## Bugs, feedback, etc.
 
