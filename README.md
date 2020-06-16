@@ -52,7 +52,6 @@ git clone git@github.com:austinhaas/scrim.git
 ;;(add-to-list 'auto-mode-alist '("\\.clj\\|\\.cljc\\|\\.cljs\\|\\.edn$" . scrim-minor-mode))
 ;; Some optional improvements to the REPL buffer.
 (add-hook 'scrim-mode-hook #'rainbow-delimiters-mode)
-(add-hook 'scrim-mode-hook #'paredit-mode)
 (add-hook 'scrim-mode-hook #'clojure-mode-variables)
 (add-hook 'scrim-mode-hook #'clojure-font-lock-setup)
 ```
