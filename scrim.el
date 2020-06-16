@@ -32,8 +32,22 @@ enters a blank string."
   (or (thing-at-point 'symbol t)
       (thing-at-point 'sexp t)))
 
-(defun scrim-defun-at-point ()
-  (thing-at-point 'defun t))
+;; Add a custom symbol for recognizing the "outermost" sexp from point. The behavior associated with
+;; 'defun does almost what we want, but it includes a trailing newline, and we don't want that.
+(put 'scrim-outermost-sexp 'bounds-of-thing-at-point
+     (lambda ()
+       (save-excursion
+         (let ((start (point)))
+           (end-of-defun)
+           (beginning-of-defun)
+           (let ((beginning (point)))
+             (forward-sexp)
+             (let ((end (point)))
+               (when (<= beginning start end)
+                 (cons beginning end))))))))
+
+(defun scrim-outermost-sexp-at-point ()
+  (thing-at-point 'scrim-outermost-sexp t))
 
 (defun scrim-sexps-in-region (start end)
   (save-restriction
@@ -53,10 +67,10 @@ enters a blank string."
                 (buffer-substring-no-properties (car bounds) (cdr bounds)))
               all-bounds))))
 
-(defun scrim-defun-at-point-name ()
+(defun scrim-outermost-sexp-function-symbol ()
   (condition-case nil
       (save-excursion
-        (beginning-of-thing 'defun)
+        (beginning-of-thing 'scrim-outermost-sexp)
         (forward-thing 'symbol)
         (thing-at-point 'symbol t))
     (error nil)))
@@ -182,7 +196,7 @@ limit the part of buffer to be evaluated."
 
 (defun scrim-eval-outermost-sexp-at-point ()
   (interactive)
-  (let ((s (scrim-defun-at-point)))
+  (let ((s (scrim-outermost-sexp-at-point)))
     (if s
         (scrim--send (scrim-proc) s)
       (user-error "No expression."))))
@@ -342,7 +356,7 @@ select a directory as the project root."
 
 (defun scrim-send-macroexpand (&optional macro-1)
   (interactive "P")
-  (let ((expr (scrim-defun-at-point)))
+  (let ((expr (scrim-outermost-sexp-at-point)))
     (if expr
         (scrim--send (scrim-proc) (format (if macro-1
                                               "(macroexpand-1 '%s)"
@@ -353,8 +367,8 @@ select a directory as the project root."
 (defun scrim-send-arglists (prompt)
   (interactive "P")
   (let ((fn (if prompt
-                (scrim--prompt "arglists for fn" (scrim-defun-at-point-name))
-              (scrim-defun-at-point-name))))
+                (scrim--prompt "arglists for fn" (scrim-outermost-sexp-function-symbol))
+              (scrim-outermost-sexp-function-symbol))))
     (if fn
         (scrim--send (scrim-proc) (format "(:arglists (meta (resolve '%s)))" fn))
       (user-error "No function near point"))))
