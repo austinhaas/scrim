@@ -39,8 +39,8 @@ enters a blank string."
           (when (<= end start)
             (buffer-substring-no-properties beginning end)))))))
 
-(defun scrim-containing-sexp ()
-  "Returns the topmost sexp containing point."
+(defun scrim-outer-around-sexp ()
+  "Returns the outer sexp around point."
   (save-excursion
     (let ((start (point)))
       (beginning-of-defun)
@@ -51,10 +51,10 @@ enters a blank string."
           (when (< beginning start end)
             (buffer-substring-no-properties beginning end)))))))
 
-(defun scrim-containing-or-previous-sexp ()
-  "Returns the topmost sexp containing point, if point is inside
+(defun scrim-outer-around-or-previous-sexp ()
+  "Returns the outer sexp around point, if point is inside
   a sexp, otherwise returns the sexp before point."
-  (or (scrim-containing-sexp)
+  (or (scrim-outer-around-sexp)
       (scrim-previous-sexp)))
 
 (defun scrim-sexps-in-region (start end)
@@ -76,9 +76,9 @@ enters a blank string."
                 (buffer-substring-no-properties (car bounds) (cdr bounds)))
               all-bounds))))
 
-(defun scrim-containing-or-previous-sexp-function-symbol ()
-  "Returns the symbol in function position in the topmost sexp
-containing point."
+(defun scrim-outer-around-or-previous-sexp-function-symbol ()
+  "Returns the symbol in function position in the outer sexp
+around point."
   (condition-case nil
       (save-excursion
         (end-of-defun)
@@ -129,8 +129,8 @@ exist."
 (defun scrim-repl-buffer-end ()
   (interactive)
   (if (get-buffer scrim--buffer-name)
-    (set-window-point (get-buffer-window scrim--buffer-name "visible")
-                      (process-mark (scrim-proc)))
+      (set-window-point (get-buffer-window scrim--buffer-name "visible")
+                        (process-mark (scrim-proc)))
     (user-error "Not connected.")))
 
 (defun scrim-show-repl-buffer ()
@@ -207,9 +207,9 @@ limit the part of buffer to be evaluated."
   (interactive)
   (scrim-eval-region (point-min) (point-max)))
 
-(defun scrim-eval-containing-or-previous-sexp ()
+(defun scrim-eval-around-or-previous-sexp ()
   (interactive)
-  (let ((s (scrim-containing-or-previous-sexp)))
+  (let ((s (scrim-outer-around-or-previous-sexp)))
     (if s
         (scrim--send (scrim-proc) s)
       (user-error "No expression."))))
@@ -256,7 +256,7 @@ process."
     (define-key map (kbd "C-c C-S-o") #'scrim-clear-repl-buffer)
 
     (define-key map (kbd "C-c C-e")   #'scrim-eval-previous-sexp)
-    (define-key map (kbd "C-c C-c")   #'scrim-eval-containing-or-previous-sexp)
+    (define-key map (kbd "C-c C-c")   #'scrim-eval-around-or-previous-sexp)
 
     (define-key map (kbd "C-c C-r")   'scrim-repl-map)
     (define-key map (kbd "C-c C-p")   'scrim-pprint-map)
@@ -272,7 +272,7 @@ process."
     (define-key map (kbd "C-c C-S-e") #'scrim-repl-buffer-end)
 
     (define-key map (kbd "C-c C-e")   #'scrim-eval-previous-sexp)
-    (define-key map (kbd "C-c C-c")   #'scrim-eval-containing-or-previous-sexp)
+    (define-key map (kbd "C-c C-c")   #'scrim-eval-around-or-previous-sexp)
     (define-key map (kbd "C-c C-b")   #'scrim-eval-buffer)
     (define-key map (kbd "C-c C-S-r") #'scrim-eval-region)
 
@@ -369,7 +369,7 @@ select a directory as the project root."
 
 (defun scrim-send-macroexpand (&optional macro-1)
   (interactive "P")
-  (let ((expr (scrim-containing-or-previous-sexp)))
+  (let ((expr (scrim-outer-around-or-previous-sexp)))
     (if expr
         (scrim--send (scrim-proc) (format (if macro-1
                                               "(macroexpand-1 '%s)"
@@ -380,8 +380,8 @@ select a directory as the project root."
 (defun scrim-send-arglists (prompt)
   (interactive "P")
   (let ((fn (if prompt
-                (scrim--prompt "arglists for fn" (scrim-containing-or-previous-sexp-function-symbol))
-              (scrim-containing-or-previous-sexp-function-symbol))))
+                (scrim--prompt "arglists for fn" (scrim-outer-around-or-previous-sexp-function-symbol))
+              (scrim-outer-around-or-previous-sexp-function-symbol))))
     (if fn
         (scrim--send (scrim-proc) (format "(:arglists (meta (resolve '%s)))" fn))
       (user-error "No function near point"))))
@@ -391,7 +391,7 @@ select a directory as the project root."
 (defun scrim-send-doc (prompt)
   (interactive "P")
   (let ((name (if prompt
-                 (scrim--prompt "doc for name" (scrim-symbol-at-point))
+                  (scrim--prompt "doc for name" (scrim-symbol-at-point))
                 (scrim-symbol-at-point))))
     (if name
         (scrim--send (scrim-proc) (format "(clojure.repl/doc %s)" name))
