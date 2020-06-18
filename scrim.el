@@ -111,7 +111,8 @@ exist."
 (defun scrim-clear-repl-buffer ()
   "Clear the scrim REPL buffer."
   (interactive)
-  (comint-clear-buffer))
+  (with-current-buffer scrim--buffer-name
+    (comint-clear-buffer)))
 
 (defun scrim-repl-buffer-end ()
   (interactive)
