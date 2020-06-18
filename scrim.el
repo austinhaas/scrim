@@ -87,7 +87,7 @@ around point."
         (thing-at-point 'symbol t))
     (error nil)))
 
-(defun scrim-ns-at-point ()
+(defun scrim-find-ns ()
   ;; TODO: Remove dependency on clojure-mode.
   (clojure-find-ns))
 
@@ -354,76 +354,72 @@ select a directory as the project root."
   (scrim (cons host port)))
 
 
-;;;; Commands that send common expressions to the REPL.
+;;;; Commands that build common Clojure expressions, usually based on symbols near point, and send
+;;;; them to the REPL.
+
+(defmacro scrim--cmd (name prompt value-fn format-string error-msg)
+  "Macro for defining simple commands that compose a Clojure
+expression, usually based on some symbol near point, and send it
+to the REPL process. If the function receives an optional prefix
+argument, it will prompt for input."
+  `(defun ,name (prompt)
+     (interactive "P")
+     (let ((arg (if prompt
+                    (scrim--prompt ,prompt (funcall ,value-fn))
+                  (funcall ,value-fn))))
+       (if arg
+           (scrim--send (scrim-proc) (format ,format-string arg))
+         (user-error ,error-msg)))))
 
 ;;; core
 
-(defun scrim-send-in-ns (prompt)
-  (interactive "P")
-  (let ((name (if prompt
-                  (scrim--prompt "Set namespace to symbol" (scrim-ns-at-point))
-                (scrim-ns-at-point))))
-    (if name
-        (scrim--send (scrim-proc) (format "(in-ns '%s)" name))
-      (user-error "No namespace found"))))
+(scrim--cmd scrim-send-in-ns
+            "Set namespace to symbol"
+            'scrim-find-ns
+            "(in-ns '%s)"
+            "Namespace not found")
+
+(scrim--cmd scrim-send-arglists
+            "arglists for fn"
+            'scrim-outer-around-or-previous-sexp-function-symbol
+            "(:arglists (meta (resolve '%s)))"
+            "No function near point")
 
 (defun scrim-send-macroexpand (&optional macro-1)
   (interactive "P")
-  (let ((expr (scrim-outer-around-or-previous-sexp)))
+  (let ((expr (scrim-previous-sexp)))
     (if expr
         (scrim--send (scrim-proc) (format (if macro-1
                                               "(macroexpand-1 '%s)"
                                             "(macroexpand '%s)")
                                           expr))
-      (user-error "No macro near point"))))
-
-(defun scrim-send-arglists (prompt)
-  (interactive "P")
-  (let ((fn (if prompt
-                (scrim--prompt "arglists for fn" (scrim-outer-around-or-previous-sexp-function-symbol))
-              (scrim-outer-around-or-previous-sexp-function-symbol))))
-    (if fn
-        (scrim--send (scrim-proc) (format "(:arglists (meta (resolve '%s)))" fn))
-      (user-error "No function near point"))))
+      (user-error "No sexp near point"))))
 
 ;;; repl
 
-(defun scrim-send-doc (prompt)
-  (interactive "P")
-  (let ((name (if prompt
-                  (scrim--prompt "doc for name" (scrim-symbol-at-point))
-                (scrim-symbol-at-point))))
-    (if name
-        (scrim--send (scrim-proc) (format "(clojure.repl/doc %s)" name))
-      (user-error "No name found"))))
+(scrim--cmd scrim-send-doc
+            "doc for symbol"
+            'scrim-symbol-at-point
+            "(clojure.repl/doc %s)"
+            "No symbol near point")
 
-(defun scrim-send-source (prompt)
-  (interactive "P")
-  (let ((n (if prompt
-               (scrim--prompt "source for symbol" (scrim-symbol-at-point))
-             (scrim-symbol-at-point))))
-    (if n
-        (scrim--send (scrim-proc) (format "(clojure.repl/source %s)" n))
-      (user-error "No symbol found"))))
+(scrim--cmd scrim-send-source
+            "source for symbol"
+            'scrim-symbol-at-point
+            "(clojure.repl/source %s)"
+            "No symbol near point")
 
-(defun scrim-send-dir (prompt)
-  (interactive "P")
-  (let ((nsname (if prompt
-                    (scrim--prompt "dir for nsname" (scrim-ns-at-point))
-                  (scrim-ns-at-point))))
-    (if nsname
-        (scrim--send (scrim-proc) (format "(clojure.repl/dir %s)" nsname))
-      (user-error "No nsname found"))))
+(scrim--cmd scrim-send-dir
+            "dir for namespace"
+            'scrim-find-ns
+            "(clojure.repl/dir %s)"
+            "No namespace found")
 
-(defun scrim-send-apropos (prompt)
-  (interactive "P")
-  (let ((str-or-pattern (if prompt
-                            (scrim--prompt "apropos for symbol" (scrim-symbol-at-point))
-                          (scrim-symbol-at-point))))
-    (if str-or-pattern
-        (scrim--send (scrim-proc) (format "(doseq [v (sort (clojure.repl/apropos \"%s\"))] (println v))"
-                                          str-or-pattern))
-      (user-error "No str-or-pattern found"))))
+(scrim--cmd scrim-send-apropos
+            "apropos for symbol"
+            'scrim-symbol-at-point
+            "(doseq [v (sort (clojure.repl/apropos \"%s\"))] (println v))"
+            "No str-or-pattern found")
 
 ;;; pretty print
 
