@@ -28,28 +28,37 @@ enters a blank string."
 (defun scrim-symbol-at-point ()
   (thing-at-point 'symbol t))
 
-(defun scrim-sexp-at-point ()
-  (or (thing-at-point 'symbol t)
-      (thing-at-point 'sexp t)))
+(defun scrim-previous-sexp ()
+  "Returns the sexp before point."
+  (save-excursion
+    (let ((start (point)))
+      (backward-sexp)
+      (let ((beginning (point)))
+        (forward-sexp)
+        (let ((end (point)))
+          (when (<= end start)
+            (buffer-substring-no-properties beginning end)))))))
 
-;; Add a custom symbol for recognizing the "outermost" sexp from point. The behavior associated with
-;; 'defun does almost what we want, but it includes a trailing newline, and we don't want that.
-(put 'scrim-outermost-sexp 'bounds-of-thing-at-point
-     (lambda ()
-       (save-excursion
-         (let ((start (point)))
-           (end-of-defun)
-           (beginning-of-defun)
-           (let ((beginning (point)))
-             (forward-sexp)
-             (let ((end (point)))
-               (when (<= beginning start end)
-                 (cons beginning end))))))))
+(defun scrim-containing-sexp ()
+  "Returns the topmost sexp containing point."
+  (save-excursion
+    (let ((start (point)))
+      (beginning-of-defun)
+      (forward-sexp)
+      (let ((end (point)))
+        (backward-sexp)
+        (let ((beginning (point)))
+          (when (< beginning start end)
+            (buffer-substring-no-properties beginning end)))))))
 
-(defun scrim-outermost-sexp-at-point ()
-  (thing-at-point 'scrim-outermost-sexp t))
+(defun scrim-containing-or-previous-sexp ()
+  "Returns the topmost sexp containing point, if point is inside
+  a sexp, otherwise returns the sexp before point."
+  (or (scrim-containing-sexp)
+      (scrim-previous-sexp)))
 
 (defun scrim-sexps-in-region (start end)
+  "Returns a list of all sexps in region."
   (save-restriction
     (narrow-to-region start end)
     (check-parens)
@@ -67,10 +76,13 @@ enters a blank string."
                 (buffer-substring-no-properties (car bounds) (cdr bounds)))
               all-bounds))))
 
-(defun scrim-outermost-sexp-function-symbol ()
+(defun scrim-containing-or-previous-sexp-function-symbol ()
+  "Returns the symbol in function position in the topmost sexp
+containing point."
   (condition-case nil
       (save-excursion
-        (beginning-of-thing 'scrim-outermost-sexp)
+        (end-of-defun)
+        (beginning-of-defun)
         (forward-thing 'symbol)
         (thing-at-point 'symbol t))
     (error nil)))
@@ -195,18 +207,18 @@ limit the part of buffer to be evaluated."
   (interactive)
   (scrim-eval-region (point-min) (point-max)))
 
-(defun scrim-eval-outermost-sexp-at-point ()
+(defun scrim-eval-containing-or-previous-sexp ()
   (interactive)
-  (let ((s (scrim-outermost-sexp-at-point)))
+  (let ((s (scrim-containing-or-previous-sexp)))
     (if s
         (scrim--send (scrim-proc) s)
       (user-error "No expression."))))
 
-(defun scrim-eval-innermost-sexp-at-point ()
+(defun scrim-eval-previous-sexp ()
   "Send the expression nearest to point to the REPL
 process."
   (interactive)
-  (let ((s (scrim-sexp-at-point)))
+  (let ((s (scrim-previous-sexp)))
     (if s
         (scrim--send (scrim-proc) s)
       (user-error "No expression."))))
@@ -243,8 +255,8 @@ process."
     (define-key map (kbd "C-c C-q")   #'scrim-quit)
     (define-key map (kbd "C-c C-S-o") #'scrim-clear-repl-buffer)
 
-    (define-key map (kbd "C-c C-i")   #'scrim-eval-innermost-sexp-at-point)
-    (define-key map (kbd "C-c C-o")   #'scrim-eval-outermost-sexp-at-point)
+    (define-key map (kbd "C-c C-e")   #'scrim-eval-previous-sexp)
+    (define-key map (kbd "C-c C-c")   #'scrim-eval-containing-or-previous-sexp)
 
     (define-key map (kbd "C-c C-r")   'scrim-repl-map)
     (define-key map (kbd "C-c C-p")   'scrim-pprint-map)
@@ -259,8 +271,8 @@ process."
     (define-key map (kbd "C-c C-z")   #'scrim-show-repl-buffer)
     (define-key map (kbd "C-c C-S-e") #'scrim-repl-buffer-end)
 
-    (define-key map (kbd "C-c C-i")   #'scrim-eval-innermost-sexp-at-point)
-    (define-key map (kbd "C-c C-o")   #'scrim-eval-outermost-sexp-at-point)
+    (define-key map (kbd "C-c C-e")   #'scrim-eval-previous-sexp)
+    (define-key map (kbd "C-c C-c")   #'scrim-eval-containing-or-previous-sexp)
     (define-key map (kbd "C-c C-b")   #'scrim-eval-buffer)
     (define-key map (kbd "C-c C-S-r") #'scrim-eval-region)
 
@@ -357,7 +369,7 @@ select a directory as the project root."
 
 (defun scrim-send-macroexpand (&optional macro-1)
   (interactive "P")
-  (let ((expr (scrim-outermost-sexp-at-point)))
+  (let ((expr (scrim-containing-or-previous-sexp)))
     (if expr
         (scrim--send (scrim-proc) (format (if macro-1
                                               "(macroexpand-1 '%s)"
@@ -368,8 +380,8 @@ select a directory as the project root."
 (defun scrim-send-arglists (prompt)
   (interactive "P")
   (let ((fn (if prompt
-                (scrim--prompt "arglists for fn" (scrim-outermost-sexp-function-symbol))
-              (scrim-outermost-sexp-function-symbol))))
+                (scrim--prompt "arglists for fn" (scrim-containing-or-previous-sexp-function-symbol))
+              (scrim-containing-or-previous-sexp-function-symbol))))
     (if fn
         (scrim--send (scrim-proc) (format "(:arglists (meta (resolve '%s)))" fn))
       (user-error "No function near point"))))
