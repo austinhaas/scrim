@@ -162,14 +162,29 @@ in the REPL buffer.
   "If t, echo output in the echo area."
   :type 'boolean)
 
+(defun scrim--send-indirectly (proc s)
+  "Sends the string s to process proc by first writing s to the
+process buffer and then sending it from there as if a human typed
+it in."
+  (with-current-buffer scrim--buffer-name
+    ;; If point is at the end of the buffer, move it forward, otherwise leave it. This doesn't work
+    ;; if point is within the previous output. I think comint adjusts point when the response is
+    ;; received. This is supposed to be DWIM, but might be too magical.
+    (let ((start (point))
+          (end?  (= (point) (point-max))))
+      (comint-goto-process-mark)
+      (insert s)
+      (comint-send-input)
+      (unless end? (goto-char start)))))
+
+(defun scrim--send-directly (proc s)
+  "Sends the string s to process proc directly."
+  (comint-simple-send proc s))
+
 (defun scrim--send (proc s)
   (if scrim-echo-input-p
-      (with-current-buffer scrim--buffer-name
-        (save-excursion
-          (comint-goto-process-mark)
-          (insert s)
-          (comint-send-input)))
-    (comint-simple-send proc s)))
+      (scrim--send-indirectly proc s)
+    (scrim--send-directly proc s)))
 
 (defun scrim--echo-output (s)
   "Display output in the echo area."
