@@ -281,9 +281,9 @@ process."
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-S-c") #'scrim-connect)
     (define-key map (kbd "C-c C-q")   #'scrim-quit)
-    (define-key map (kbd "C-c C-S-o") #'scrim-clear-repl-buffer)
 
     (define-key map (kbd "C-c C-z")   #'scrim-show-repl-buffer)
+    (define-key map (kbd "C-c C-S-o") #'scrim-clear-repl-buffer)
     (define-key map (kbd "C-c C-S-e") #'scrim-repl-buffer-end)
 
     (define-key map (kbd "C-c C-e")   #'scrim-eval-previous-sexp)
@@ -291,6 +291,7 @@ process."
     (define-key map (kbd "C-c C-b")   #'scrim-eval-buffer)
     (define-key map (kbd "C-c C-S-r") #'scrim-eval-region)
 
+    (define-key map (kbd "C-c r")     #'scrim-send-require)
     (define-key map (kbd "C-c C-n")   #'scrim-send-in-ns)
     (define-key map (kbd "C-c C-a")   #'scrim-send-arglists)
     (define-key map (kbd "C-c C-m")   #'scrim-send-macroexpand)
@@ -387,6 +388,12 @@ argument, it will prompt for input."
          (user-error ,error-msg)))))
 
 ;;; core
+
+(scrim--cmd scrim-send-require
+            "require ns"
+            'scrim-find-ns
+            "(require '%s)"
+            "Namespace not found")
 
 (scrim--cmd scrim-send-in-ns
             "Set namespace to symbol"
