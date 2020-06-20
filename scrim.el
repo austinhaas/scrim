@@ -39,6 +39,16 @@ enters a blank string."
           (when (<= end start)
             (buffer-substring-no-properties beginning end)))))))
 
+(defun scrim-inner-around-sexp-function-symbol ()
+  "Returns the symbol in function position in the inner sexp
+around point."
+  (condition-case nil
+      (save-excursion
+        (backward-up-list)
+        (forward-thing 'symbol)
+        (thing-at-point 'symbol t))
+    (error nil)))
+
 (defun scrim-outer-around-sexp ()
   "Returns the outer sexp around point."
   (save-excursion
@@ -403,7 +413,7 @@ argument, it will prompt for input."
 
 (scrim--cmd scrim-send-arglists
             "arglists for fn"
-            'scrim-outer-around-or-previous-sexp-function-symbol
+            'scrim-inner-around-sexp-function-symbol
             "(:arglists (meta (resolve '%s)))"
             "No function near point")
 
