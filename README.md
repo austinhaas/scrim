@@ -76,4 +76,4 @@ Similar projects I've used and referenced:
 
 Copyright (c) 2020 Austin Haas.
 
-Licensed under the [GNU General Public License, version 2](blob/master/LICENSE.txt).
+Licensed under the [GNU General Public License, version 3](COPYING).
