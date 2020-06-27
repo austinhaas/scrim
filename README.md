@@ -1,10 +1,10 @@
-# SCRIM - Simple Clojure REPL Interaction Mode
+# Scrim - Simple Clojure REPL Interaction Mode
 
 An Emacs package for Clojure REPL interaction.
 
 A major mode for connection to a Clojure REPL process in a buffer.
 
-A minor mode for buffers containing Clojure(script) code.
+A minor mode for buffers containing Clojure(Script) code.
 
 No magic. No extras.
 
