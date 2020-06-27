@@ -7,7 +7,7 @@
 
 
 (defconst scrim-version "0.0.1"
-  "The current version of `scrim'.")
+  "The current version of `Scrim'.")
 
 ;;;; Utility
 
@@ -104,13 +104,13 @@ around point."
 ;;;; Configuration
 
 (defgroup scrim nil
-  "scrim group"
+  "Scrim group"
   :prefix "scrim-"
   :group 'clojure
   :link '(url-link :tag "GitHub" "https://github.com/"))
 
 (defcustom scrim-prompt-read-only t
-  "If t, the prompt in the scrim REPL buffer is read-only."
+  "If t, the prompt in the Scrim REPL buffer is read-only."
   :type 'boolean)
 
 (defcustom scrim-prompt-regexp "^[^=> \n]+=> *"
@@ -123,15 +123,15 @@ for customizing that prompt."
 ;;;; REPL buffer
 
 (defvar scrim--buffer-name "*scrim*"
-  "The name of the scrim REPL buffer.")
+  "The name of the Scrim REPL buffer.")
 
 (defun scrim-proc ()
-  "Return the current scrim REPL process, or nil if it doesn't
+  "Return the current Scrim REPL process, or nil if it doesn't
 exist."
   (get-buffer-process scrim--buffer-name))
 
 (defun scrim-clear-repl-buffer ()
-  "Clear the scrim REPL buffer."
+  "Clear the Scrim REPL buffer."
   (interactive)
   (with-current-buffer scrim--buffer-name
     (comint-clear-buffer)))
@@ -144,7 +144,7 @@ exist."
     (user-error "Not connected.")))
 
 (defun scrim-show-repl-buffer ()
-  "Show the scrim REPL buffer, if it exists and is not already
+  "Show the Scrim REPL buffer, if it exists and is not already
 visible."
   (interactive)
   (if (get-buffer scrim--buffer-name)
@@ -249,7 +249,7 @@ process."
       (user-error "No expression."))))
 
 (defun scrim-quit ()
-  "Send EOF to the scrim REPL process."
+  "Send EOF to the Scrim REPL process."
   (interactive)
   (if (get-buffer scrim--buffer-name)
       (with-current-buffer scrim--buffer-name
@@ -315,12 +315,12 @@ process."
 
 ;;;###autoload
 (define-minor-mode scrim-minor-mode
-  "Minor mode for interacting with the scrim REPL buffer.
+  "Minor mode for interacting with the Scrim REPL buffer.
 
 Commands:
 
 \\{scrim-minor-mode-map}"
-  :lighter " scrim"
+  :lighter " Scrim"
   :keymap scrim-minor-mode-map
   (setq-local comint-input-sender 'scrim--send))
 
@@ -336,7 +336,7 @@ Commands:
 
 ;;;###autoload
 (defun scrim (program)
-  "Launch a scrim REPL buffer, running PROGRAM.
+  "Launch a Scrim REPL buffer, running PROGRAM.
 
 PROGRAM should be one of the following:
 - a string, denoting an executable program to create via
