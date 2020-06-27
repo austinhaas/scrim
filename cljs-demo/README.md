@@ -1,4 +1,4 @@
-# A guide to developing with ClojureScript, Emacs, and scrim
+# A guide to developing with ClojureScript, Emacs, and Scrim
 
 How to connect all of the pieces and test that everything works.
 
@@ -18,7 +18,7 @@ This is what I consider to be the base of an ideal ClojureScript development env
 
 * [Clojure and CLI tools](https://clojure.org/guides/getting_started#_clojure_installer_and_cli_tools)
 * [Emacs](https://www.gnu.org/software/emacs/)
-* [scrim](https://github.com/austinhaas/scrim)
+* [Scrim](https://github.com/austinhaas/scrim)
 * [Python](https://www.python.org/) (for a simple webserver)
 * [A web browser](https://www.mozilla.org/en-US/firefox/new/)
 
@@ -59,7 +59,7 @@ python3 -m http.server --bind localhost 8000
 C-x C-f scrim-install-dir/cljs-demo/src/cljs_demo/core.cljs RET
 ```
 
-### Step 5: Connect scrim
+### Step 5: Connect Scrim
 ```
 M-x scrim-connect RET localhost RET 5555
 ```
@@ -95,7 +95,7 @@ rm -rf out
 
 This shell script just wraps `clj` with a few options. [See the contents of that file for more info.](compile-advanced.sh)
 
-### Test everything but Emacs and scrim
+### Test everything but Emacs and Scrim
 
 Do the steps above, but instead of Step 4 and Step 5, do
 
@@ -103,3 +103,8 @@ Do the steps above, but instead of Step 4 and Step 5, do
 telnet localhost 5555
 ```
 and enter clojurescript expressions at the prompt.
+
+### View all communication between Scrim and the Java process
+```
+sudo ngrep -d any port 5555
+```
