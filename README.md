@@ -57,7 +57,18 @@ git clone git@github.com:austinhaas/scrim.git
 ```
 ## Usage
 
-Use `C-h m` in a buffer to see keybindings.
+The keybindings can be displayed by either using `C-h m` in a Scrim-enabled buffer and then
+selecting `Scrim` under the enabled minor modes, or `C-h f scrim-minor-mode RET`.
+
+## Guides
+
+This repository includes a couple simple sample projects with instructions that walk through the
+steps required to get to a working interactive development environment.
+
+* [Clojure](clj-demo)
+* [ClojureScript](cljs-demo)
+
+### ClojureScript
 
 ## Bugs, feedback, etc.
 
