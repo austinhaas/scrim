@@ -68,8 +68,6 @@ steps required to get to a working interactive development environment.
 * [Clojure](clj-demo)
 * [ClojureScript](cljs-demo)
 
-### ClojureScript
-
 ## Bugs, feedback, etc.
 
 Please open a ticket in github.
