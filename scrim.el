@@ -210,6 +210,23 @@ it in."
     (scrim--echo-output s))
   s)
 
+(defun scrim-redirect-result-from-process (process command)
+  "Send COMMAND to PROCESS. Return the output. Does not show input or output in Scrim REPL buffer.
+
+Adapted from comint-redirect-results-list-from-process."
+  (let ((output-buffer " *Scrim Redirect Work Buffer*")
+	      results)
+    (with-current-buffer (get-buffer-create output-buffer)
+      (erase-buffer)
+      (comint-redirect-send-command-to-process command output-buffer process nil t)
+      ;; Wait for the process to complete
+      (set-buffer (process-buffer process))
+      (while (and (null comint-redirect-completed)
+		              (accept-process-output process)))
+      ;; Collect the output
+      (set-buffer output-buffer)
+      (buffer-substring-no-properties (point-min) (point-max)))))
+
 
 ;;;; High-level, Clojure I/O
 
@@ -278,6 +295,7 @@ process."
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map comint-mode-map)
     (define-key map (kbd "C-c C-q")   #'scrim-quit)
+    (define-key map (kbd "M-.")       #'scrim-goto-source)
     (define-key map (kbd "C-c C-S-o") #'scrim-clear-repl-buffer)
 
     (define-key map (kbd "C-c C-e")   #'scrim-eval-previous-sexp)
@@ -291,6 +309,8 @@ process."
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-S-c") #'scrim-connect)
     (define-key map (kbd "C-c C-q")   #'scrim-quit)
+
+    (define-key map (kbd "M-.")       #'scrim-goto-source)
 
     (define-key map (kbd "C-c C-z")   #'scrim-show-repl-buffer)
     (define-key map (kbd "C-c C-S-o") #'scrim-clear-repl-buffer)
@@ -452,6 +472,22 @@ argument, it will prompt for input."
             'scrim-symbol-at-point
             "(doseq [v (sort (clojure.repl/apropos \"%s\"))] (println v))"
             "No str-or-pattern found")
+
+(defun scrim-goto-source (prompt)
+  (interactive "P")
+  (let ((arg (if prompt
+                 (scrim--prompt "path to source for symbol" (scrim-symbol-at-point))
+               (scrim-symbol-at-point))))
+    (if arg
+        (let ((result (scrim-redirect-result-from-process (scrim-proc) (format "(let [{:keys [file line]} (meta (resolve '%s))] (when file (str file \":\" line)))" arg))))
+          (if (not (string-match "\"\\(.*\\):\\(.*\\)\n?" result))
+              (error "Couldn't find source for %s. Do you need to switch namespaces?" arg)
+            (let ((file (match-string 1 result))
+                  (line (string-to-number (match-string 2 result))))
+              (xref-push-marker-stack)
+              (find-file file)
+              (goto-line line))))
+      (user-error "No symbol near point"))))
 
 ;;; pretty print
 
