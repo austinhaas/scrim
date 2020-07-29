@@ -473,21 +473,48 @@ argument, it will prompt for input."
             "(doseq [v (sort (clojure.repl/apropos \"%s\"))] (println v))"
             "No str-or-pattern found")
 
+(defun scrim--find-file (url)
+  (require 'arc-mode)
+  (cond ((string-match "\"file:\\(.*\\):\\(.*\\)\"" result)
+         (let ((file (match-string 1 result))
+               (line (string-to-number (match-string 2 result))))
+           (xref-push-marker-stack)
+           (find-file file)
+           (goto-line line)))
+        ((string-match "\"\\(jar\\|zip\\):file:\\(.+\\)!/\\(.+\\):\\(.*\\)\"" url)
+         (when-let* ((archive (match-string 2 url))
+                     (file    (match-string 3 url))
+                     (line    (string-to-number (match-string 4 url)))
+                     (name    (format "%s:%s" archive file)))
+           (cond
+            ((find-buffer-visiting name)
+             (xref-push-marker-stack)
+             (switch-to-buffer (find-buffer-visiting name))
+             (goto-line line))
+            (t
+             (xref-push-marker-stack)
+             (with-current-buffer (generate-new-buffer
+                                   (file-name-nondirectory file))
+               (archive-zip-extract archive file)
+               (set-visited-file-name name)
+               (setq-local default-directory (file-name-directory archive))
+               (setq-local buffer-read-only t)
+               (set-buffer-modified-p nil)
+               (set-auto-mode)
+               (switch-to-buffer (current-buffer))
+               (goto-line line))))))
+        (t
+         nil)))
+
 (defun scrim-goto-source (prompt)
   (interactive "P")
   (let ((arg (if prompt
                  (scrim--prompt "path to source for symbol" (scrim-symbol-at-point))
                (scrim-symbol-at-point))))
     (if arg
-        (let ((result (scrim-redirect-result-from-process (scrim-proc) (format "(let [{:keys [file line]} (meta (resolve '%s))] (when file (str (.getFile (.getResource (clojure.lang.RT/baseLoader) file)) \":\" line)))" arg))))
+        (let ((result (scrim-redirect-result-from-process (scrim-proc) (format "(let [{:keys [file line]} (meta (resolve '%s))] (when file (str (.getResource (clojure.lang.RT/baseLoader) file) \":\" line)))" arg))))
           (message "result: %s" result)
-          (if (not (string-match "\"\\(.*\\):\\(.*\\)\n?" result))
-              (error "Couldn't find source for %s. Do you need to switch namespaces?" arg)
-            (let ((file (match-string 1 result))
-                  (line (string-to-number (match-string 2 result))))
-              (xref-push-marker-stack)
-              (find-file file)
-              (goto-line line))))
+          (scrim--find-file result))
       (user-error "No symbol near point"))))
 
 ;;; pretty print
