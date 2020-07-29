@@ -479,7 +479,8 @@ argument, it will prompt for input."
                  (scrim--prompt "path to source for symbol" (scrim-symbol-at-point))
                (scrim-symbol-at-point))))
     (if arg
-        (let ((result (scrim-redirect-result-from-process (scrim-proc) (format "(let [{:keys [file line]} (meta (resolve '%s))] (when file (str file \":\" line)))" arg))))
+        (let ((result (scrim-redirect-result-from-process (scrim-proc) (format "(let [{:keys [file line]} (meta (resolve '%s))] (when file (str (.getFile (.getResource (clojure.lang.RT/baseLoader) file)) \":\" line)))" arg))))
+          (message "result: %s" result)
           (if (not (string-match "\"\\(.*\\):\\(.*\\)\n?" result))
               (error "Couldn't find source for %s. Do you need to switch namespaces?" arg)
             (let ((file (match-string 1 result))
