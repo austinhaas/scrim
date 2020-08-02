@@ -203,7 +203,7 @@ it in."
          ;; Remove trailing newlines, if present.
          (s (replace-regexp-in-string "\n+\\'" "" s)))
     (unless (string-match-p scrim-prompt-regexp s)
-      (message s))))
+      (message "%s" s))))
 
 (defun scrim--preoutput-filter (s)
   (when scrim-echo-output-p
