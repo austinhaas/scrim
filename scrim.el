@@ -354,7 +354,7 @@ Commands:
 (define-derived-mode scrim-mode comint-mode "scrim"
   (setq comint-prompt-regexp scrim-prompt-regexp)
   (setq mode-line-process '(":%s"))
-  (add-hook 'comint-output-filter-functions #'scrim--output-filter)
+  (add-hook 'comint-output-filter-functions #'scrim--output-filter nil t)
   (setq-local comint-prompt-read-only scrim-prompt-read-only)
   (ansi-color-for-comint-mode-on))
 
