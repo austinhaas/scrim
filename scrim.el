@@ -520,7 +520,6 @@ argument, it will prompt for input."
                (scrim-symbol-at-point))))
     (if arg
         (let ((result (scrim-redirect-result-from-process (scrim-proc) (format "(let [{:keys [file line]} (meta (resolve '%s))] (when file (str (.getResource (clojure.lang.RT/baseLoader) file) \":\" line)))" arg))))
-          (message "result: %s" result)
           (scrim--find-file result))
       (user-error "No symbol near point"))))
 
