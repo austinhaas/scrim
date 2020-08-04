@@ -198,17 +198,24 @@ it in."
 
 (defun scrim--echo-output (s)
   "Display output in the echo area."
-  ;; Remove trailing prompt, if present.
-  (let* ((s (replace-regexp-in-string (concat scrim-prompt-regexp "\\'") "" s))
-         ;; Remove trailing newlines, if present.
-         (s (replace-regexp-in-string "\n+\\'" "" s)))
-    (unless (string-match-p scrim-prompt-regexp s)
+  ;; This function may be called multiple times, with each call containing a
+  ;; portion of the complete output. For example, after receiving the user's
+  ;; input, this function may be called with a blank string, then again with the
+  ;; result, and then again with a prompt. The result value may also be split
+  ;; across multiple calls. In order to display the complete result, the value
+  ;; is read from the REPL buffer, instead of using the string argument to this
+  ;; function.
+  (with-current-buffer scrim--buffer-name
+    (let* ((s (buffer-substring-no-properties comint-last-input-end (process-mark (scrim-proc))))
+           ;; Remove any trailing prompt.
+           (s (replace-regexp-in-string (concat scrim-prompt-regexp "\\'") "" s))
+           ;; Remove any trailing newlines.
+           (s (replace-regexp-in-string "\n+\\'" "" s)))
       (message "%s" s))))
 
-(defun scrim--preoutput-filter (s)
+(defun scrim--output-filter (s)
   (when scrim-echo-output-p
-    (scrim--echo-output s))
-  s)
+    (scrim--echo-output s)))
 
 
 ;;;; High-level, Clojure I/O
@@ -327,7 +334,7 @@ Commands:
 (define-derived-mode scrim-mode comint-mode "scrim"
   (setq comint-prompt-regexp scrim-prompt-regexp)
   (setq mode-line-process '(":%s"))
-  (add-hook 'comint-preoutput-filter-functions #'scrim--preoutput-filter nil t)
+  (add-hook 'comint-output-filter-functions #'scrim--output-filter)
   (setq-local comint-prompt-read-only scrim-prompt-read-only)
   (ansi-color-for-comint-mode-on))
 
