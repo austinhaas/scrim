@@ -189,32 +189,6 @@ it in."
 (defun scrim--send (proc s)
   (scrim--send-indirectly proc s))
 
-<<<<<<< HEAD
-  (if scrim-echo-input-p
-      (scrim--send-indirectly proc s)
-    (scrim--send-directly proc s)))
-
-(defun scrim--echo-output (s)
-  "Display output in the echo area."
-  ;; This function may be called multiple times, with each call containing a
-  ;; portion of the complete output. For example, after receiving the user's
-  ;; input, this function may be called with a blank string, then again with the
-  ;; result, and then again with a prompt. The result value may also be split
-  ;; across multiple calls. In order to display the complete result, the value
-  ;; is read from the REPL buffer, instead of using the string argument to this
-  ;; function.
-  (with-current-buffer scrim--buffer-name
-    (let* ((s (buffer-substring-no-properties comint-last-input-end (process-mark (scrim-proc))))
-           ;; Remove any trailing prompt.
-           (s (replace-regexp-in-string (concat scrim-prompt-regexp "\\'") "" s))
-           ;; Remove any trailing newlines.
-           (s (replace-regexp-in-string "\n+\\'" "" s)))
-      (message "%s" s))))
-
-(defun scrim--output-filter (s)
-  (when scrim-echo-output-p
-    (scrim--echo-output s)))
-
 (defun scrim-redirect-result-from-process (process command)
   "Send COMMAND to PROCESS. Return the output. Does not show input or output in Scrim REPL buffer.
 
