@@ -6,7 +6,7 @@
 (require 'thingatpt)
 
 
-(defconst scrim-version "0.0.1"
+(defconst scrim-version "0.0.2"
   "The current version of `Scrim'.")
 
 ;;;; Utility
@@ -153,24 +153,19 @@ visible."
         (display-buffer scrim--buffer-name))
     (user-error "Not connected.")))
 
+(defun scrim-last-output ()
+  "Returns the text between the last prompt and the current
+prompt in the REPL."
+  (with-current-buffer scrim--buffer-name
+    (let* ((s (buffer-substring-no-properties comint-last-input-end (process-mark (scrim-proc))))
+           ;; Remove any trailing prompt.
+           (s (replace-regexp-in-string (concat scrim-prompt-regexp "\\'") "" s))
+           ;; Remove any trailing newlines.
+           (s (replace-regexp-in-string "\n+\\'" "" s)))
+      s)))
+
 
 ;;;; Low-level, comint I/O
-
-(defcustom scrim-echo-input-p t
-  "If t, first send input to the REPL buffer, then send it to the
-process from there. This has the effect of capturing the complete
-interaction history in the REPL buffer. That means that the input
-is visible, interleaved with the output, and also inputs are
-recorded and can be recalled with commands like
-comint-previous-input, which is typically bound to several keys
-in the REPL buffer.
-
-  If nil, send input directly to the REPL process."
-  :type 'boolean)
-
-(defcustom scrim-echo-output-p t
-  "If t, echo output in the echo area."
-  :type 'boolean)
 
 (defun scrim--send-indirectly (proc s)
   "Sends the string s to process proc by first writing s to the
@@ -192,30 +187,7 @@ it in."
   (comint-simple-send proc s))
 
 (defun scrim--send (proc s)
-  (if scrim-echo-input-p
-      (scrim--send-indirectly proc s)
-    (scrim--send-directly proc s)))
-
-(defun scrim--echo-output (s)
-  "Display output in the echo area."
-  ;; This function may be called multiple times, with each call containing a
-  ;; portion of the complete output. For example, after receiving the user's
-  ;; input, this function may be called with a blank string, then again with the
-  ;; result, and then again with a prompt. The result value may also be split
-  ;; across multiple calls. In order to display the complete result, the value
-  ;; is read from the REPL buffer, instead of using the string argument to this
-  ;; function.
-  (with-current-buffer scrim--buffer-name
-    (let* ((s (buffer-substring-no-properties comint-last-input-end (process-mark (scrim-proc))))
-           ;; Remove any trailing prompt.
-           (s (replace-regexp-in-string (concat scrim-prompt-regexp "\\'") "" s))
-           ;; Remove any trailing newlines.
-           (s (replace-regexp-in-string "\n+\\'" "" s)))
-      (message "%s" s))))
-
-(defun scrim--output-filter (s)
-  (when scrim-echo-output-p
-    (scrim--echo-output s)))
+  (scrim--send-indirectly proc s))
 
 
 ;;;; High-level, Clojure I/O
@@ -334,7 +306,6 @@ Commands:
 (define-derived-mode scrim-mode comint-mode "scrim"
   (setq comint-prompt-regexp scrim-prompt-regexp)
   (setq mode-line-process '(":%s"))
-  (add-hook 'comint-output-filter-functions #'scrim--output-filter nil t)
   (setq-local comint-prompt-read-only scrim-prompt-read-only)
   (ansi-color-for-comint-mode-on))
 
