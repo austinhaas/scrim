@@ -316,14 +316,15 @@ process."
 (define-minor-mode scrim-minor-mode
   "Minor mode for interacting with the Scrim REPL buffer.
 
-Commands:
-
 \\{scrim-minor-mode-map}"
   :lighter " Scrim"
   :keymap scrim-minor-mode-map
   (setq-local comint-input-sender 'scrim--send))
 
 (define-derived-mode scrim-mode comint-mode "scrim"
+  "Major mode for a Clojure REPL.
+
+\\{scrim-mode-map}"
   (setq comint-prompt-regexp scrim-prompt-regexp)
   (setq mode-line-process '(":%s"))
   (setq-local comint-prompt-read-only scrim-prompt-read-only)
