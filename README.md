@@ -31,6 +31,10 @@ Alpha
 
   Additional features may be included in a separate, optional, non-essential file. Support (e.g., hooks) may be included in the core file if it can be done simply.
 
+## Dependencies
+
+* [clojure-mode](https://github.com/clojure-emacs/clojure-mode/)
+
 ## Installation
 
 ### Clone the repository
