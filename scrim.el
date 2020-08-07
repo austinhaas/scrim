@@ -11,12 +11,13 @@
 
 ;;;; Utility
 
+;; TODO: Replace this with completing-read.
 (defun scrim--prompt (prompt default)
   "Prompt user for input. If default is not nil, it will be
-included in the prompt and returned as the value if the user
+included in the prompt, and returned as the value if the user
 enters a blank string."
   (let* ((prompt (if default
-                     (format "%s [%s]: " prompt default)
+                     (format "%s (default %s): " prompt default)
                    (format "%s: " prompt)))
          (ans    (read-string prompt)))
     (if (string-blank-p ans)
