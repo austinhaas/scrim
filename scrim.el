@@ -446,11 +446,13 @@ argument, it will prompt for input."
             "(clojure.repl/dir %s)"
             "No namespace found")
 
-(scrim--cmd scrim-send-apropos
-            "apropos for symbol"
-            'scrim-symbol-at-point
-            "(doseq [v (sort (clojure.repl/apropos \"%s\"))] (println v))"
-            "No str-or-pattern found")
+(defun scrim-send-apropos (str-or-pattern)
+  (interactive (list (read-string "apropos for str-or-pattern: ")))
+  (if (equal "" str-or-pattern)
+      (user-error "You didn't specify a string or pattern")
+    (scrim--send (scrim-proc)
+                 (format "(doseq [v (sort (clojure.repl/apropos %s))] (println v))"
+                         str-or-pattern))))
 
 (defun scrim--find-file (url)
   (require 'arc-mode)
