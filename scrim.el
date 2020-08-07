@@ -87,21 +87,6 @@ around point."
                 (buffer-substring-no-properties (car bounds) (cdr bounds)))
               all-bounds))))
 
-(defun scrim-outer-around-or-previous-sexp-function-symbol ()
-  "Returns the symbol in function position in the outer sexp
-around point."
-  (condition-case nil
-      (save-excursion
-        (end-of-defun)
-        (beginning-of-defun)
-        (forward-thing 'symbol)
-        (thing-at-point 'symbol t))
-    (error nil)))
-
-(defun scrim-find-ns ()
-  ;; TODO: Remove dependency on clojure-mode.
-  (clojure-find-ns))
-
 ;;;; Configuration
 
 (defgroup scrim nil
@@ -401,13 +386,13 @@ argument, it will prompt for input."
 
 (scrim--cmd scrim-send-require
             "require ns"
-            'scrim-find-ns
+            'clojure-find-ns
             "(require '%s)"
             "Namespace not found")
 
 (scrim--cmd scrim-send-in-ns
             "Set namespace to symbol"
-            'scrim-find-ns
+            'clojure-find-ns
             "(in-ns '%s)"
             "Namespace not found")
 
@@ -443,7 +428,7 @@ argument, it will prompt for input."
 
 (scrim--cmd scrim-send-dir
             "dir for namespace"
-            'scrim-find-ns
+            'clojure-find-ns
             "(clojure.repl/dir %s)"
             "No namespace found")
 
