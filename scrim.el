@@ -24,7 +24,7 @@ enters a blank string."
         default
       ans)))
 
-;;;; Functions to extract values from Clojure buffers
+;;;; Functions to extract expressions from Clojure buffers
 
 (defun scrim-symbol-at-point ()
   (thing-at-point 'symbol t))
@@ -40,12 +40,38 @@ enters a blank string."
           (when (<= end start)
             (buffer-substring-no-properties beginning end)))))))
 
-(defun scrim-inner-around-sexp-function-symbol ()
-  "Returns the symbol in function position in the inner sexp
+(defun scrim--function-invocation-at-pos-p (pos)
+  (save-excursion
+    (goto-char pos)
+    (if (= (point-min) (point))
+        (looking-at-p "(")
+      (backward-char)
+      (looking-at-p "[^']("))))
+
+(defun scrim--current-function-invocation-pos ()
+    "Returns the character address of the innermost containing
+function invocation; nil if none."
+  (let ((ps (reverse (nth 9 (syntax-ppss)))))
+    (while (and (consp ps)
+                (not (scrim--function-invocation-at-pos-p (car ps))))
+      (setq ps (cdr ps)))
+    (car ps)))
+
+(defun scrim-backward-function-invocation ()
+  "Move point to the start of the function invocation containing
+point."
+  (let ((pos (scrim--current-function-invocation-pos)))
+    (message "pos: %s" pos)
+    (if pos
+        (goto-char pos)
+      (user-error "Not in a function invocation."))))
+
+(defun scrim-current-function-symbol ()
+  "Returns the symbol in function position in the innermost sexp
 around point."
   (condition-case nil
       (save-excursion
-        (backward-up-list)
+        (scrim-backward-function-invocation)
         (forward-thing 'symbol)
         (thing-at-point 'symbol t))
     (error nil)))
@@ -398,7 +424,7 @@ argument, it will prompt for input."
 
 (scrim--cmd scrim-send-arglists
             "arglists for fn"
-            'scrim-inner-around-sexp-function-symbol
+            'scrim-current-function-symbol
             "(:arglists (meta (resolve '%s)))"
             "No function near point")
 
