@@ -286,7 +286,7 @@ process."
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map comint-mode-map)
     (define-key map (kbd "C-c C-q")   #'scrim-quit)
-    (define-key map (kbd "M-.")       #'scrim-goto-source)
+    (define-key map (kbd "M-.")       #'scrim-find-definition)
     (define-key map (kbd "C-c C-S-o") #'scrim-clear-repl-buffer)
 
     (define-key map (kbd "C-c C-e")   #'scrim-eval-previous-sexp)
@@ -499,7 +499,7 @@ argument, it will prompt for input."
         (t
          nil)))
 
-(defun scrim-goto-source (prompt)
+(defun scrim-find-definition (prompt)
   (interactive "P")
   (let ((arg (if prompt
                  (scrim--prompt "path to source for symbol" (scrim-symbol-at-point))
