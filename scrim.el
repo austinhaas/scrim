@@ -6,7 +6,7 @@
 (require 'thingatpt)
 
 
-(defconst scrim-version "0.0.2"
+(defconst scrim-version "0.0.3"
   "The current version of `Scrim'.")
 
 ;;;; Utility
