@@ -301,7 +301,7 @@ process."
     (define-key map (kbd "C-c C-S-c") #'scrim-connect)
     (define-key map (kbd "C-c C-q")   #'scrim-quit)
 
-    (define-key map (kbd "M-.")       #'scrim-goto-source)
+    (define-key map (kbd "M-.")       #'scrim-find-definition)
 
     (define-key map (kbd "C-c C-z")   #'scrim-show-repl-buffer)
     (define-key map (kbd "C-c C-S-o") #'scrim-clear-repl-buffer)
