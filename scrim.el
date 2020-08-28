@@ -216,7 +216,9 @@ Adapted from comint-redirect-results-list-from-process."
 		              (accept-process-output process)))
       ;; Collect the output
       (set-buffer output-buffer)
-      (buffer-substring-no-properties (point-min) (point-max)))))
+      (let ((s (buffer-substring-no-properties (point-min) (point-max))))
+        ;; Remove any trailing newlines
+        (replace-regexp-in-string "\n+\\'" "" s)))))
 
 
 ;;;; High-level, Clojure I/O
@@ -505,8 +507,15 @@ argument, it will prompt for input."
                  (scrim--prompt "path to source for symbol" (scrim-symbol-at-point))
                (scrim-symbol-at-point))))
     (if arg
-        (let ((result (scrim-redirect-result-from-process (scrim-proc) (format "(let [{:keys [file line]} (meta (resolve '%s))] (when file (str (.getResource (clojure.lang.RT/baseLoader) file) \":\" line)))" arg))))
-          (scrim--find-file result))
+        (let* ((clj "(let [{:keys [file line]} (meta (resolve '%s))]
+ (cond
+   (nil? file)                 nil
+   (= file \"NO_SOURCE_PATH\") nil
+   :else                       (str (.getResource (clojure.lang.RT/baseLoader) file) \":\" line)))")
+               (result (scrim-redirect-result-from-process (scrim-proc) (format clj arg))))
+          (if (string= "nil" result)
+              (error "Couldn't find definition for %s. (Was it evaluated in the REPL?)" arg)
+            (scrim--find-file result)))
       (user-error "No symbol near point"))))
 
 ;;; pretty print
