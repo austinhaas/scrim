@@ -485,7 +485,7 @@ namespaces, which are then used in the prompt."
 
 (defun scrim--find-file (url)
   (require 'arc-mode)
-  (cond ((string-match "\"file:\\(.*\\):\\(.*\\)\"" result)
+  (cond ((string-match "file:\\(.*\\):\\(.*\\)" result)
          (let ((file (match-string 1 result))
                (line (string-to-number (match-string 2 result))))
            (xref-push-marker-stack)
@@ -527,8 +527,8 @@ namespaces, which are then used in the prompt."
    (nil? file)                 nil
    (= file \"NO_SOURCE_PATH\") nil
    :else                       (str (.getResource (clojure.lang.RT/baseLoader) file) \":\" line)))")
-               (result (scrim-redirect-result-from-process (scrim-proc) (format clj arg))))
-          (if (string= "nil" result)
+               (result (read (scrim-redirect-result-from-process (scrim-proc) (format clj arg)))))
+          (if (null result)
               (error "Couldn't find definition for %s. (Was it evaluated in the REPL?)" arg)
             (scrim--find-file result)))
       (user-error "No symbol near point"))))
