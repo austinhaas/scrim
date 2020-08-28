@@ -220,6 +220,15 @@ Adapted from comint-redirect-results-list-from-process."
         ;; Remove any trailing newlines
         (replace-regexp-in-string "\n+\\'" "" s)))))
 
+(defun scrim--unwrap-clj-string (s)
+  "Removes leading and trailing escaped quotes from string.
+
+When we use scrim-redirect-result-from-process to interact with
+the REPL, all results are elisp strings, and results that
+represent Clojure strings start and end with escaped quotes. This
+function removes those."
+  (string-trim-left (string-trim-right s "\"") "\""))
+
 
 ;;;; High-level, Clojure I/O
 
@@ -454,11 +463,29 @@ argument, it will prompt for input."
             "(clojure.repl/source %s)"
             "No symbol near point")
 
-(scrim--cmd scrim-send-dir
-            "dir for namespace"
-            'clojure-find-ns
-            "(clojure.repl/dir %s)"
-            "No namespace found")
+(defun scrim-send-dir (nsname)
+  "Sends (clojure.repl/dir nsname) to the REPL.
+
+Uses process redirection to silently query the REPL for
+namespaces, which are then used in the prompt."
+  (interactive (list
+                (let ((ns (clojure-find-ns))
+                      (nss (split-string
+                            (scrim--unwrap-clj-string
+                             (scrim-redirect-result-from-process (scrim-proc) "(->> (all-ns) (map ns-name) (map name) (clojure.string/join \",\"))"))
+                            ",")))
+                  (completing-read (if ns
+                                       (format "ns (default %s): " ns)
+                                     "ns: ")
+                                   nss
+                                   nil
+                                   t
+                                   nil
+                                   nil
+                                   ns))))
+  (if nsname
+      (scrim--send (scrim-proc) (format "(clojure.repl/dir %s)" nsname))
+    (user-error "No namespace found")))
 
 (defun scrim-send-apropos (str-or-pattern)
   (interactive (list (read-string "apropos for str-or-pattern: ")))
