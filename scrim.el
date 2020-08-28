@@ -220,15 +220,6 @@ Adapted from comint-redirect-results-list-from-process."
         ;; Remove any trailing newlines
         (replace-regexp-in-string "\n+\\'" "" s)))))
 
-(defun scrim--unwrap-clj-string (s)
-  "Removes leading and trailing escaped quotes from string.
-
-When we use scrim-redirect-result-from-process to interact with
-the REPL, all results are elisp strings, and results that
-represent Clojure strings start and end with escaped quotes. This
-function removes those."
-  (string-trim-left (string-trim-right s "\"") "\""))
-
 
 ;;;; High-level, Clojure I/O
 
@@ -470,10 +461,7 @@ Uses process redirection to silently query the REPL for
 namespaces, which are then used in the prompt."
   (interactive (list
                 (let ((ns (clojure-find-ns))
-                      (nss (split-string
-                            (scrim--unwrap-clj-string
-                             (scrim-redirect-result-from-process (scrim-proc) "(->> (all-ns) (map ns-name) (map name) (clojure.string/join \",\"))"))
-                            ",")))
+                      (nss (read (scrim-redirect-result-from-process (scrim-proc) "(->> (all-ns) (map ns-name) (map name))"))))
                   (completing-read (if ns
                                        (format "ns (default %s): " ns)
                                      "ns: ")
