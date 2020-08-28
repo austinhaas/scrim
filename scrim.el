@@ -448,11 +448,41 @@ argument, it will prompt for input."
             "(clojure.repl/doc %s)"
             "No symbol near point")
 
-(scrim--cmd scrim-send-source
-            "source for symbol"
-            'scrim-symbol-at-point
-            "(clojure.repl/source %s)"
-            "No symbol near point")
+(defun scrim-send-source (n)
+  "Sends (clojure.repl/source n) to the REPL.
+
+When called interactively, if the point is at a symbol, then it
+will use that symbol. If point is not at a symbol, or if a prefix
+is used, then it will prompt for a namespace and a symbol.
+
+Uses process redirection to silently query the REPL for
+namespaces and public symbols, which are then used in the
+prompt."
+  (interactive (let ((sym (scrim-symbol-at-point)))
+                 (list
+                  (if (and (null current-prefix-arg)
+                           sym)
+                      sym
+                      (let* ((ns (clojure-find-ns))
+                             (nss (read (scrim-redirect-result-from-process (scrim-proc) "(->> (all-ns) (map ns-name) (map name))")))
+                             (ns (completing-read (if ns
+                                                      (format "ns (default %s): " ns)
+                                                    "ns: ")
+                                                  nss
+                                                  nil
+                                                  t
+                                                  nil
+                                                  nil
+                                                  ns))
+                             (syms (read (scrim-redirect-result-from-process (scrim-proc) (format "(map first (ns-publics '%s))" ns))))
+                             (sym (completing-read "sym: "
+                                                   syms
+                                                   nil
+                                                   t)))
+                        (string-join (list ns sym) "/"))))))
+  (if n
+      (scrim--send (scrim-proc) (format "(clojure.repl/source %s)" n))
+    (user-error "No name found")))
 
 (defun scrim-send-dir (nsname)
   "Sends (clojure.repl/dir nsname) to the REPL.
