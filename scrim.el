@@ -315,6 +315,7 @@ process."
     (define-key map (kbd "C-c C-b")   #'scrim-eval-buffer)
     (define-key map (kbd "C-c C-S-r") #'scrim-eval-region)
 
+    (define-key map (kbd "C-c C-l")   #'scrim-send-load-file)
     (define-key map (kbd "C-c r")     #'scrim-send-require)
     (define-key map (kbd "C-c C-n")   #'scrim-send-in-ns)
     (define-key map (kbd "C-c C-a")   #'scrim-send-arglists)
@@ -440,6 +441,14 @@ argument, it will prompt for input."
                                             "(macroexpand '%s)")
                                           expr))
       (user-error "No sexp near point"))))
+
+(defun scrim-send-load-file (file)
+  "Sends (clojure.core/load-file file) to the REPL."
+  (interactive (list (expand-file-name (read-file-name "file: " nil buffer-file-name t (file-name-nondirectory buffer-file-name)))))
+  (comint-check-source file)
+  (if file
+      (scrim--send (scrim-proc) (format "(load-file \"%s\")" file))
+    (user-error "No file found")))
 
 ;;; repl
 
