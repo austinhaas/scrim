@@ -4,6 +4,7 @@
 (require 'comint)
 (require 'subr-x)
 (require 'thingatpt)
+(require 'xref)
 
 
 (defconst scrim-version "0.0.3"
