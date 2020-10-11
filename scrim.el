@@ -276,6 +276,7 @@ process."
     (define-key map (kbd "C-s")   #'scrim-send-source)
     (define-key map (kbd "C-S-a") #'scrim-send-apropos)
     (define-key map (kbd "C-S-d") #'scrim-send-dir)
+    (define-key map (kbd "C-p")   #'scrim-send-pst)
     map)
   "Bindings for functions in clojure.repl.")
 
@@ -572,6 +573,10 @@ namespaces, which are then used in the prompt."
               (error "Couldn't find definition for %s. (Was it evaluated in the REPL?)" arg)
             (scrim--find-file result)))
       (user-error "No symbol near point"))))
+
+(defun scrim-send-pst ()
+  (interactive)
+  (scrim--send (scrim-proc) "(clojure.repl/pst)"))
 
 ;;; pretty print
 
