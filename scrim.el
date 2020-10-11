@@ -7,7 +7,7 @@
 (require 'xref)
 
 
-(defconst scrim-version "0.0.3"
+(defconst scrim-version "0.0.4"
   "The current version of `Scrim'.")
 
 ;;;; Utility
