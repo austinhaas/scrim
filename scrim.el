@@ -2,6 +2,7 @@
 (require 'cl-lib)
 (require 'clojure-mode)
 (require 'comint)
+(require 'eldoc)
 (require 'subr-x)
 (require 'thingatpt)
 (require 'xref)
@@ -62,7 +63,6 @@ function invocation; nil if none."
   "Move point to the start of the function invocation containing
 point."
   (let ((pos (scrim--current-function-invocation-pos)))
-    (message "pos: %s" pos)
     (if pos
         (goto-char pos)
       (user-error "Not in a function invocation."))))
@@ -214,7 +214,7 @@ Adapted from comint-redirect-results-list-from-process."
       ;; Wait for the process to complete
       (set-buffer (process-buffer process))
       (while (and (null comint-redirect-completed)
-		              (accept-process-output process)))
+		              (accept-process-output process 60)))
       ;; Collect the output
       (set-buffer output-buffer)
       (let ((s (buffer-substring-no-properties (point-min) (point-max))))
@@ -336,7 +336,9 @@ process."
 \\{scrim-minor-mode-map}"
   :lighter " Scrim"
   :keymap scrim-minor-mode-map
-  (setq-local comint-input-sender 'scrim--send))
+  (setq-local comint-input-sender 'scrim--send)
+  (add-function :before-until (local 'eldoc-documentation-function)
+                'scrim-mode-eldoc-function))
 
 (define-derived-mode scrim-mode comint-mode "scrim"
   "Major mode for a Clojure REPL.
@@ -345,7 +347,9 @@ process."
   (setq comint-prompt-regexp scrim-prompt-regexp)
   (setq mode-line-process '(":%s"))
   (setq-local comint-prompt-read-only scrim-prompt-read-only)
-  (ansi-color-for-comint-mode-on))
+  (ansi-color-for-comint-mode-on)
+  (add-function :before-until (local 'eldoc-documentation-function)
+                'scrim-mode-eldoc-function))
 
 
 ;;;; Starting
@@ -583,6 +587,34 @@ namespaces, which are then used in the prompt."
 (defun scrim-send-pp ()
   (interactive)
   (scrim--send (scrim-proc) "(clojure.pprint/pp)"))
+
+
+;;;; eldoc
+
+(defvar-local scrim--eldoc-cache nil)
+
+(defun scrim-mode-eldoc-function ()
+  (let ((sym (scrim-current-function-symbol)))
+    (if sym
+        (if (get-buffer-process scrim--buffer-name)
+            (if (string= sym (car scrim--eldoc-cache))
+                (cdr scrim--eldoc-cache)
+              (let* ((query  (format "(:arglists (meta (resolve '%s)))" sym))
+                     (result (scrim-redirect-result-from-process (scrim-proc) query))
+                     (result (if (string= "nil" result)
+                                 "<unknown symbol>"
+                                 result))
+                     (s      (format "%s: %s"
+                                     (propertize sym 'face 'font-lock-function-name-face)
+                                     result)))
+                (setq scrim--eldoc-cache (cons sym s))
+                s))
+          (let ((s (format "%s: %s"
+                           (propertize sym 'face 'font-lock-function-name-face)
+                           "<not connected>")))
+            (setq scrim--eldoc-cache (cons sym s))
+            s))
+      nil)))
 
 (provide 'scrim)
 
