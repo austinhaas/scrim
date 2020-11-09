@@ -593,28 +593,43 @@ namespaces, which are then used in the prompt."
 
 (defvar-local scrim--eldoc-cache nil)
 
+(defun scrim--get-arglists (sym)
+  (read
+   (scrim-redirect-result-from-process
+    (scrim-proc)
+    (format "(:arglists (meta (resolve '%s)))"
+            sym))))
+
+(defun scrim--get-docstring (sym)
+  (scrim-redirect-result-from-process
+   (scrim-proc)
+   (format "(clojure.repl/doc %s)"
+           sym)))
+
+(defun scrim--get-special-form-signature (sym)
+  (when-let ((doc   (scrim--get-docstring sym))
+             (lines (split-string doc "[\n]" nil "[ ]+")))
+    (caddr lines)))
+
 (defun scrim-mode-eldoc-function ()
-  (let ((sym (scrim-current-function-symbol)))
-    (if sym
-        (if (get-buffer-process scrim--buffer-name)
-            (if (string= sym (car scrim--eldoc-cache))
-                (cdr scrim--eldoc-cache)
-              (let* ((query  (format "(:arglists (meta (resolve '%s)))" sym))
-                     (result (scrim-redirect-result-from-process (scrim-proc) query))
-                     (result (if (string= "nil" result)
-                                 "<unknown symbol>"
-                                 result))
-                     (s      (format "%s: %s"
-                                     (propertize sym 'face 'font-lock-function-name-face)
-                                     result)))
-                (setq scrim--eldoc-cache (cons sym s))
-                s))
-          (let ((s (format "%s: %s"
-                           (propertize sym 'face 'font-lock-function-name-face)
-                           "<not connected>")))
+  (when-let ((sym (or (scrim-current-function-symbol)
+                      (scrim-symbol-at-point))))
+    (if (get-buffer-process scrim--buffer-name)
+        (if (string= sym (car scrim--eldoc-cache))
+            (cdr scrim--eldoc-cache)
+          (let* ((result (or (scrim--get-arglists sym)
+                             (scrim--get-special-form-signature sym)
+                             "<unknown symbol>"))
+                 (s      (format "%s: %s"
+                                 (propertize sym 'face 'font-lock-function-name-face)
+                                 result)))
             (setq scrim--eldoc-cache (cons sym s))
             s))
-      nil)))
+      (let ((s (format "%s: %s"
+                       (propertize sym 'face 'font-lock-function-name-face)
+                       "<not connected>")))
+        (setq scrim--eldoc-cache (cons sym s))
+        s))))
 
 (provide 'scrim)
 
