@@ -63,7 +63,8 @@ git clone git@github.com:austinhaas/scrim.git
 (add-hook 'clojure-mode-hook 'scrim-minor-mode)
 ;; If you don't use clojure-mode.
 ;;(add-to-list 'auto-mode-alist '("\\.clj\\|\\.cljc\\|\\.cljs\\|\\.edn$" . scrim-minor-mode))
-;;(add-hook 'scrim-mode-hook 'eldoc-mode) ;; Not implemented.
+;; Enable eldoc to show function signatures in the echo area.
+(add-hook 'scrim-mode-hook 'eldoc-mode)
 
 ;;; Extras
 
