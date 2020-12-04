@@ -611,25 +611,26 @@ namespaces, which are then used in the prompt."
     (caddr lines)))
 
 (defun scrim-mode-eldoc-function ()
-  (when-let ((sym (or (scrim-current-function-symbol)
-                      (scrim-symbol-at-point))))
-    (if (get-buffer-process scrim--buffer-name)
-        (cond
-         ((string= sym (car scrim--eldoc-cache)) (cdr scrim--eldoc-cache))
-         ((string-prefix-p ":" sym) nil)
-         (t (let* ((result (or (scrim--get-arglists sym)
-                               (scrim--get-special-form-signature sym)
-                               "<unknown symbol>"))
-                   (s      (format "%s: %s"
-                                   (propertize sym 'face 'font-lock-function-name-face)
-                                   result)))
-              (setq scrim--eldoc-cache (cons sym s))
-              s)))
-      (let ((s (format "%s: %s"
-                       (propertize sym 'face 'font-lock-function-name-face)
-                       "<not connected>")))
-        (setq scrim--eldoc-cache (cons sym s))
-        s))))
+  (when (not (nth 4 (syntax-ppss))) ; inside a comment?
+    (when-let ((sym (or (scrim-current-function-symbol)
+                        (scrim-symbol-at-point))))
+      (if (get-buffer-process scrim--buffer-name)
+          (cond
+           ((string= sym (car scrim--eldoc-cache)) (cdr scrim--eldoc-cache))
+           ((string-prefix-p ":" sym) nil)
+           (t (let* ((result (or (scrim--get-arglists sym)
+                                 (scrim--get-special-form-signature sym)
+                                 "<unknown symbol>"))
+                     (s      (format "%s: %s"
+                                     (propertize sym 'face 'font-lock-function-name-face)
+                                     result)))
+                (setq scrim--eldoc-cache (cons sym s))
+                s)))
+        (let ((s (format "%s: %s"
+                         (propertize sym 'face 'font-lock-function-name-face)
+                         "<not connected>")))
+          (setq scrim--eldoc-cache (cons sym s))
+          s)))))
 
 (provide 'scrim)
 
