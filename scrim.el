@@ -347,9 +347,7 @@ process."
   (setq comint-prompt-regexp scrim-prompt-regexp)
   (setq mode-line-process '(":%s"))
   (setq-local comint-prompt-read-only scrim-prompt-read-only)
-  (ansi-color-for-comint-mode-on)
-  (add-function :before-until (local 'eldoc-documentation-function)
-                'scrim-mode-eldoc-function))
+  (ansi-color-for-comint-mode-on))
 
 
 ;;;; Starting
