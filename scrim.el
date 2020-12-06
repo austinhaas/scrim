@@ -592,10 +592,13 @@ namespaces, which are then used in the prompt."
 (defvar-local scrim--eldoc-cache nil)
 
 (defun scrim--get-arglists (sym)
-  (scrim-redirect-result-from-process
-   (scrim-proc)
-   (format "(:arglists (meta (resolve '%s)))"
-           sym)))
+  (let ((result (scrim-redirect-result-from-process
+                 (scrim-proc)
+                 (format "(:arglists (meta (resolve '%s)))"
+                         sym))))
+    (if (string-equal result "nil")
+        nil
+      result)))
 
 (defun scrim--get-docstring (sym)
   (scrim-redirect-result-from-process
