@@ -123,7 +123,7 @@ steps required to get to a working interactive development environment.
 
 ## Bugs, feedback, etc.
 
-Please open a ticket in github.
+Please create an issue here: https://github.com/austinhaas/scrim/issues
 
 ## Credit
 
