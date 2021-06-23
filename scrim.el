@@ -147,7 +147,8 @@ exist."
   "Clear the Scrim REPL buffer."
   (interactive)
   (with-current-buffer scrim--buffer-name
-    (comint-clear-buffer)))
+    (comint-clear-buffer)
+    (goto-char (point-max))))
 
 (defun scrim-repl-buffer-end ()
   (interactive)
