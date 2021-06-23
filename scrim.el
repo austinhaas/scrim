@@ -126,7 +126,14 @@ around point."
   "If t, the prompt in the Scrim REPL buffer is read-only."
   :type 'boolean)
 
-(defcustom scrim-prompt-regexp "^[^=> \n]+=> *"
+;; (defcustom scrim-prompt-regexp "^[^=> \n]+=> *"
+;;   "Regexp for the Clojure prompt. Default should match the
+;; default Clojure REPL prompt.
+;; See https://clojure.github.io/clojure/clojure.main-api.html#clojure.main/repl
+;; for customizing that prompt."
+;;   :type 'regexp)
+
+(defcustom scrim-prompt-regexp "^"
   "Regexp for the Clojure prompt. Default should match the
 default Clojure REPL prompt.
 See https://clojure.github.io/clojure/clojure.main-api.html#clojure.main/repl
@@ -195,12 +202,44 @@ it in."
       (comint-send-input)
       (unless end? (goto-char start)))))
 
+(defun scrim--send-indirectly-prepl (proc s)
+  (with-current-buffer scrim--buffer-name
+
+    (let ((start (point))
+          (end?  (= (point) (point-max))))
+      (comint-goto-process-mark)
+      (insert s)
+      (comint-send-input)
+      (unless end? (goto-char start)))))
+
+;; Not used
 (defun scrim--send-directly (proc s)
   "Sends the string s to process proc directly."
   (comint-simple-send proc s))
 
 (defun scrim--send (proc s)
-  (scrim--send-indirectly proc s))
+  (scrim--send-indirectly-prepl proc s))
+
+(defun scrim--parse-prepl-result (s)
+  (with-temp-buffer
+    (clojure-mode)
+    (insert s)
+    (goto-char (point-min))
+    (forward-sexp) ;; Necessary to avoid including trailing whitespace.
+    (let* ((s (+ (point-min) 1))
+           (e (- (point) 1))
+           (xs (scrim-sexps-in-region s e)))
+      (read (concat "(" (string-join xs " ") ")")))))
+
+(defun scrim--parse-prepl-results (s)
+  "Converts a string as returned from prepl to a list of plists."
+  (with-temp-buffer
+    (clojure-mode)
+    (insert s)
+    (let ((xs (split-string s "\n" t)))
+      (mapcar (lambda (x)
+                (scrim--parse-prepl-result x))
+              xs))))
 
 (defun scrim-redirect-result-from-process (process command)
   "Send COMMAND to PROCESS. Return the output. Does not show input or output in Scrim REPL buffer.
@@ -217,9 +256,78 @@ Adapted from comint-redirect-results-list-from-process."
 		              (accept-process-output process)))
       ;; Collect the output
       (set-buffer output-buffer)
-      (let ((s (buffer-substring-no-properties (point-min) (point-max))))
-        ;; Remove any trailing newlines
-        (replace-regexp-in-string "\n+\\'" "" s)))))
+      (let* ((s (buffer-substring-no-properties (point-min) (point-max)))
+             ;; Assuming one result!
+             (plist (car (scrim--parse-prepl-results s)))
+             (val (plist-get plist :val)))
+        val))))
+
+(defface scrim-prepl-raw-face
+  '((t :background "#222222"
+       :foreground "#444444"))
+  "Face for raw."
+  :group 'scrim-mode)
+
+(defface scrim-prepl-ret-face
+  '((t :background "#2e8b57"
+       :foreground "#ffffc0"))
+  "Face for ret."
+  :group 'scrim-mode)
+
+(defface scrim-prepl-exception-face
+  '((t :background "#aa3333"
+       :foreground "#ffffff"))
+  "Face for exceptions."
+  :group 'scrim-mode)
+
+(defface scrim-prepl-out-face
+  '((t :background "#ffa500"
+       :foreground "#333333"))
+  "Face for out."
+  :group 'scrim-mode)
+
+(defface scrim-prepl-err-face
+  '((t :background "#332222"
+       :foreground "#ffffff"))
+  "Face for err."
+  :group 'scrim-mode)
+
+(defface scrim-prepl-tap-face
+  '((t :background "yellow"
+       :foreground "black"))
+  "Face for tap."
+  :group 'scrim-mode)
+
+(defface scrim-prepl-prompt-face
+  '((t :background "#4682b4"
+       :foreground "#ffffc0"))
+  "Face for prompt."
+  :group 'scrim-mode)
+
+;; (face-spec-set 'scrim-prepl-out-face
+;;                '((t :background "#ffe4c4"
+;;                     :foreground "#333333")))
+
+(defun scrim-preoutput-filter (s)
+  (message "scrim-preoutput-filter: <start>%s<end>" s)
+  (let ((xs (scrim--parse-prepl-results s)))
+    (concat
+     (propertize s 'face 'scrim-prepl-raw-face)
+     (string-join
+      (mapcar (lambda (plist)
+                (let* ((tag (plist-get plist :tag))
+                       (val (plist-get plist :val)))
+                  (cond
+                   ((equal tag :ret) (if (equal 'true (plist-get plist :exception))
+                                         (propertize val 'face 'scrim-prepl-exception-face)
+                                       (propertize val 'face 'scrim-prepl-ret-face)))
+                   ((equal tag :out) (propertize val 'face 'scrim-prepl-out-face))
+                   ((equal tag :err) (propertize val 'face 'scrim-prepl-err-face))
+                   ((equal tag :tap) (propertize val 'face 'scrim-prepl-tap-face)))))
+              xs)
+      "\n")
+     "\n"
+     (propertize"[user]\n" 'face 'scrim-prepl-prompt-face))))
 
 
 ;;;; High-level, Clojure I/O
@@ -345,7 +453,9 @@ process."
   (setq comint-prompt-regexp scrim-prompt-regexp)
   (setq mode-line-process '(":%s"))
   (setq-local comint-prompt-read-only scrim-prompt-read-only)
-  (ansi-color-for-comint-mode-on))
+  ;;(ansi-color-for-comint-mode-on)
+  (add-hook 'comint-preoutput-filter-functions #'scrim-preoutput-filter nil t)
+  (font-lock-mode 0))
 
 
 ;;;; Starting
