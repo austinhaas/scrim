@@ -585,7 +585,7 @@ namespaces, which are then used in the prompt."
 
 (defun scrim-send-pp ()
   (interactive)
-  (scrim--send (scrim-proc) "(clojure.pprint/pp)"))
+  (scrim--send (scrim-proc) "#?(:clj (clojure.pprint/pp) :cljs (cljs.pprint/pp))"))
 
 
 ;;;; eldoc
