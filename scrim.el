@@ -570,7 +570,8 @@ namespaces, which are then used in the prompt."
  (cond
    (nil? file)                 nil
    (= file \"NO_SOURCE_PATH\") nil
-   :else                       (str (.getResource (clojure.lang.RT/baseLoader) file) \":\" line)))")
+   :else                       #?(:clj (str (.getResource (clojure.lang.RT/baseLoader) file) \":\" line)
+                                  :cljs nil)))")
                (result (read (scrim-redirect-result-from-process (scrim-proc) (format clj arg)))))
           (if (null result)
               (error "Couldn't find definition for %s. (Was it evaluated in the REPL?)" arg)
