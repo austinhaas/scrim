@@ -623,6 +623,8 @@ namespaces, which are then used in the prompt."
            ((string-prefix-p ":" sym) nil)
            ((string-prefix-p "#_" sym) nil)
            ((string-suffix-p "/" sym) nil)
+           ((string-suffix-p "#" sym) nil)
+           ((string-suffix-p ".-" sym) nil)
            (t (let* ((result (or (scrim--get-arglists sym)
                                  (scrim--get-special-form-signature sym)
                                  "<unknown symbol>"))
