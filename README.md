@@ -50,6 +50,7 @@ git clone git@github.com:austinhaas/scrim.git
 
 (add-to-list 'load-path "~/.emacs.d/site-lisp/third-party/scrim/")
 (require 'scrim)
+(require 'scrim-eldoc) ;; Optional. Eldoc support is alpha.
 
 ;;; Major mode hooks
 
@@ -63,8 +64,6 @@ git clone git@github.com:austinhaas/scrim.git
 (add-hook 'clojure-mode-hook 'scrim-minor-mode)
 ;; If you don't use clojure-mode.
 ;;(add-to-list 'auto-mode-alist '("\\.clj\\|\\.cljc\\|\\.cljs\\|\\.edn$" . scrim-minor-mode))
-;; Enable eldoc to show function signatures in the echo area.
-(add-hook 'scrim-minor-mode-hook 'eldoc-mode)
 
 ;;; Extras
 

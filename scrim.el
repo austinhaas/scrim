@@ -337,9 +337,7 @@ process."
 \\{scrim-minor-mode-map}"
   :lighter " Scrim"
   :keymap scrim-minor-mode-map
-  (setq-local comint-input-sender 'scrim--send)
-  (add-function :before-until (local 'eldoc-documentation-function)
-                'scrim-mode-eldoc-function))
+  (setq-local comint-input-sender 'scrim--send))
 
 (define-derived-mode scrim-mode comint-mode "scrim"
   "Major mode for a Clojure REPL.
@@ -587,69 +585,6 @@ namespaces, which are then used in the prompt."
 (defun scrim-send-pp ()
   (interactive)
   (scrim--send (scrim-proc) "#?(:clj (clojure.pprint/pp) :cljs (cljs.pprint/pp))"))
-
-
-;;;; eldoc
-
-(defvar-local scrim--eldoc-cache nil)
-
-(defun scrim--get-arglists (sym)
-  (let ((result (scrim-redirect-result-from-process
-                 (scrim-proc)
-                 (format "(:arglists (meta (resolve '%s)))"
-                         sym))))
-    (if (string-equal result "nil")
-        nil
-      result)))
-
-(defun scrim--get-docstring (sym)
-  (scrim-redirect-result-from-process
-   (scrim-proc)
-   (format "(clojure.repl/doc %s)"
-           sym)))
-
-(defun scrim--get-ns ()
-  (read
-   (scrim-redirect-result-from-process
-    (scrim-proc)
-    "(str *ns*)")))
-
-(defun scrim--get-special-form-signature (sym)
-  (when-let ((doc   (scrim--get-docstring sym))
-             (lines (split-string doc "[\n]" nil "[ ]+")))
-    (caddr lines)))
-
-(defun scrim-mode-eldoc-function ()
-  (when (scrim-proc)
-    (let ((buffer-ns (clojure-find-ns))
-          (actual-ns (scrim--get-ns)))
-      ;;(message "ns: buffer: %s actual: %s" buffer-ns actual-ns)
-      (when (or (string-equal actual-ns "") ;; *ns* is always nil in cljs, so skip this check.
-                (string-equal buffer-ns actual-ns))
-        (when (not (nth 4 (syntax-ppss))) ; inside a comment?
-          (when-let ((sym (or (scrim-current-function-symbol)
-                              (scrim-symbol-at-point))))
-            (if (get-buffer-process scrim--buffer-name)
-                (cond
-                 ((string= sym (car scrim--eldoc-cache)) (cdr scrim--eldoc-cache))
-                 ((string-prefix-p ":" sym) nil)
-                 ((string-prefix-p "#_" sym) nil)
-                 ((string-suffix-p "/" sym) nil)
-                 ((string-suffix-p "#" sym) nil)
-                 ((string-suffix-p ".-" sym) nil)
-                 (t (let* ((result (or (scrim--get-arglists sym)
-                                       (scrim--get-special-form-signature sym)
-                                       "<unknown symbol>"))
-                           (s      (format "%s: %s"
-                                           (propertize sym 'face 'font-lock-function-name-face)
-                                           result)))
-                      (setq scrim--eldoc-cache (cons sym s))
-                      s)))
-              (let ((s (format "%s: %s"
-                               (propertize sym 'face 'font-lock-function-name-face)
-                               "<not connected>")))
-                (setq scrim--eldoc-cache (cons sym s))
-                s))))))))
 
 (provide 'scrim)
 
