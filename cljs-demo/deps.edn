@@ -1,1 +1,34 @@
-{:deps {org.clojure/clojurescript {:mvn/version "1.10.758"}}}
+{:deps
+ {org.clojure/clojurescript {:mvn/version "1.10.866"}}
+
+ :aliases
+ {:cljs-node-repl-server
+  {:exec-fn   clojure.core.server/start-server
+   :exec-args {:name          "cljs-node-repl-server"
+               :address       "127.0.0.1"
+               :port          5555
+               :accept        cljs.server.node/repl
+               :args          [{:opts     {:warn-on-undeclared false
+                                           :watch              "src"}
+                                :env-opts {}}]
+               :server-daemon false
+               :main          cljs-demo.core
+               :output-dir    "out"
+               :output-to     "out/main.js"
+               :optimizations :none}}
+
+  :cljs-browser-repl-server
+  {:exec-fn   clojure.core.server/start-server
+   :exec-args {:name          "cljs-browser-repl-server"
+               :address       "127.0.0.1"
+               :port          5555
+               :accept        cljs.server.browser/repl
+               :args          [{:opts     {:warn-on-undeclared false
+                                           :watch              "src"
+                                           :launch-browser     true}
+                                :env-opts {}}]
+               :server-daemon false
+               :main          cljs-demo.core
+               :output-dir    "out"
+               :output-to     "out/main.js"
+               :optimizations :none}}}}

@@ -12,11 +12,14 @@
 
 ;; You should see a REPL. Hopefully, this buffer is still visible.
 
-;; Move point (i.e., the cursor) just after the following namespace declaration.
+;; Move point (i.e., the cursor) just after the namespace declaration a few
+;; lines below.
+
+;; Evaluate it with:
 
 ;; C-c C-e - evaluate previous sexp
 
-(ns clj-demo.core)
+(ns clj-demo.demo)
 
 ;; Move point anywhere inside the following function definition.
 
@@ -53,9 +56,9 @@
 
 ;;; More useful commands
 
-;; C-c C-n - switch to namespace
-
 ;; C-c r - require namespace
+
+;; C-c C-n - switch to namespace
 
 ;; C-c C-r C-S-d - show public vars in namespace
 

@@ -1,0 +1,7 @@
+{:deps    {org.clojure/clojure {:mvn/version "1.10.3"}}
+ :aliases {:clj-repl-server {:exec-fn   clojure.core.server/start-server
+                             :exec-args {:name          "clj-repl-server"
+                                         :address       "127.0.0.1"
+                                         :port          5555
+                                         :accept        clojure.core.server/repl
+                                         :server-daemon false}}}}
