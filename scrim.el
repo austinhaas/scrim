@@ -624,8 +624,8 @@ namespaces, which are then used in the prompt."
     (let ((buffer-ns (clojure-find-ns))
           (actual-ns (scrim--get-ns)))
       ;;(message "ns: buffer: %s actual: %s" buffer-ns actual-ns)
-      (when (and (not (string-equal actual-ns "nil")) ;; *ns* is always nil in cljs, so skip this check.
-                 (string-equal buffer-ns actual-ns))
+      (when (or (string-equal actual-ns "") ;; *ns* is always nil in cljs, so skip this check.
+                (string-equal buffer-ns actual-ns))
         (when (not (nth 4 (syntax-ppss))) ; inside a comment?
           (when-let ((sym (or (scrim-current-function-symbol)
                               (scrim-symbol-at-point))))
