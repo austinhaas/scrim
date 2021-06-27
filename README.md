@@ -135,6 +135,6 @@ Similar projects I've used and referenced:
 
 ## License
 
-Copyright (c) 2020 Austin Haas.
+Copyright (c) 2021 Austin Haas.
 
 Licensed under the [GNU General Public License, version 3](COPYING).
