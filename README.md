@@ -46,6 +46,18 @@ git clone git@github.com:austinhaas/scrim.git
 ### Update your .emacs (customize to your preference)
 
 ```
+;;;; clojure-mode
+
+(add-to-list 'load-path "~/.emacs.d/site-lisp/third-party/clojure-mode/")
+(require 'clojure-mode)
+(require 'clojure-mode-extra-font-locking)
+(add-hook 'clojure-mode-hook 'rainbow-delimiters-mode) ;; Optional
+(add-hook 'clojure-mode-hook 'paredit-mode) ;; Optional
+(add-hook 'clojure-mode-hook 'hs-minor-mode) ;; Optional
+(add-hook 'clojure-mode-hook 'scrim-minor-mode)
+
+(setq clojure-refactor-map-prefix nil) ;; Conflicts with scrim keybinding for "C-c C-r".
+
 ;;;; scrim
 
 (add-to-list 'load-path "~/.emacs.d/site-lisp/third-party/scrim/")
@@ -54,16 +66,10 @@ git clone git@github.com:austinhaas/scrim.git
 
 ;;; Major mode hooks
 
-(add-hook 'scrim-mode-hook 'rainbow-delimiters-mode) ;; Optional
 (add-hook 'scrim-mode-hook 'clojure-mode-variables)
 (add-hook 'scrim-mode-hook 'clojure-font-lock-setup)
-
-;;; Minor mode hooks
-
-;; If you already use clojure-mode.
-(add-hook 'clojure-mode-hook 'scrim-minor-mode)
-;; If you don't use clojure-mode.
-;;(add-to-list 'auto-mode-alist '("\\.clj\\|\\.cljc\\|\\.cljs\\|\\.edn$" . scrim-minor-mode))
+(add-hook 'scrim-mode-hook 'rainbow-delimiters-mode) ;; Optional.
+;; (add-hook 'scrim-mode-hook 'paredit-mode) ;; Optional. Not working, because it binds C-d, which scrim-mode uses to quit.
 
 ;;; Extras
 
