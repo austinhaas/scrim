@@ -422,11 +422,21 @@ select a directory as the project root."
       (set-buffer scrim--buffer-name)
       (scrim-mode))))
 
+(defcustom scrim-default-host "localhost"
+  "The default host to connect to a REPL socket server."
+  :type 'string
+  :safe 'stringp)
+
+(defcustom scrim-default-port 5555
+  "The default port to connect to a REPL socket server."
+  :type 'integer
+  :safe 'integerp)
+
 ;;;###autoload
 (defun scrim-connect (host port)
   "Same as (scrim '(host . port))."
-  (interactive (list (scrim--prompt "host" "localhost")
-                     (scrim--prompt "port" 5555)))
+  (interactive (list (scrim--prompt "host" scrim-default-host)
+                     (scrim--prompt "port" scrim-default-port)))
   (scrim (cons host port)))
 
 

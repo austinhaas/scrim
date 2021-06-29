@@ -1,3 +1,7 @@
+
+(customize-set-variable 'scrim-default-host "localhost") ;; This is the default.
+(customize-set-variable 'scrim-default-port 5555) ;; This is the default.
+
 (add-to-list 'load-path "~/.emacs.d/site-lisp/third-party/paredit.git")
 
 (autoload 'enable-paredit-mode "paredit"
