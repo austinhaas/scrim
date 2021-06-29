@@ -35,7 +35,6 @@
 (require 'cl-lib)
 (require 'clojure-mode)
 (require 'comint)
-(require 'eldoc)
 (require 'subr-x)
 (require 'thingatpt)
 (require 'xref)
