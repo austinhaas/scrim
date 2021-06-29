@@ -68,6 +68,7 @@
           (actual-ns (scrim--get-ns)))
       ;;(message "ns: buffer: %s actual: %s" buffer-ns actual-ns)
       (when (or (string-equal actual-ns "") ;; *ns* is always nil in cljs, so skip this check.
+                (string-equal scrim--buffer-name (buffer-name)) ;; In the REPL buffer.
                 (string-equal buffer-ns actual-ns))
         (when (not (nth 4 (syntax-ppss))) ; inside a comment?
           (when-let ((sym (or (scrim-current-function-symbol)
@@ -93,16 +94,6 @@
                                "<not connected>")))
                 (setq scrim--eldoc-cache (cons sym s))
                 s))))))))
-
-(add-hook 'clojure-mode-hook 'eldoc-mode)
-
-(add-hook 'scrim-minor-mode-hook
-          (lambda ()
-            (add-function :before-until
-                          (local 'eldoc-documentation-function)
-                          'scrim-mode-eldoc-function)))
-
-(add-hook 'scrim-minor-mode-hook 'eldoc-mode)
 
 (provide 'scrim-eldoc)
 
