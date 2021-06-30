@@ -55,17 +55,19 @@ hideshow. You can expand it using the normal hideshow commands."
   "A function to run each time the scrim REPL buffer receives
 output from the Java process."
 
-  ;; There may be a better place for this.
-  (my-scrim-hide-last-input)
+  (when (not (string-equal s "user=> "))
 
-  ;; This function may be called multiple times; each call containing a portion
-  ;; of the complete output. For example, after receiving the user's input, this
-  ;; function may be called with a blank string, then again with the result, and
-  ;; then again with a prompt. The result value may also be split across
-  ;; multiple calls. In order to display the complete result, the value is read
-  ;; from the REPL buffer, instead of using the string argument to this
-  ;; function.
-  (my-scrim-echo-output))
+    ;; There may be a better place for this.
+    (my-scrim-hide-last-input)
+
+    ;; This function may be called multiple times; each call containing a portion
+    ;; of the complete output. For example, after receiving the user's input, this
+    ;; function may be called with a blank string, then again with the result, and
+    ;; then again with a prompt. The result value may also be split across
+    ;; multiple calls. In order to display the complete result, the value is read
+    ;; from the REPL buffer, instead of using the string argument to this
+    ;; function.
+    (my-scrim-echo-output)))
 
 (defun init-scrim-mode ()
   "My customizations."
