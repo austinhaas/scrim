@@ -189,14 +189,16 @@ exist."
                         (process-mark (scrim-proc)))
     (user-error "Not connected.")))
 
-(defun scrim-show-repl-buffer ()
+(defun scrim-show-or-hide-repl-buffer ()
   "Show the Scrim REPL buffer, if it exists and is not already
-visible."
+visible, or if it is visible, replace it with the previous
+buffer."
   (interactive)
   (if (get-buffer scrim--buffer-name)
-      ;; Unless it is already visible.
-      (unless (get-buffer-window scrim--buffer-name "visible")
-        (display-buffer scrim--buffer-name))
+      (let ((window (get-buffer-window scrim--buffer-name "visible")))
+        (if window
+            (switch-to-prev-buffer window)
+          (display-buffer scrim--buffer-name)))
     (user-error "Not connected.")))
 
 (defun scrim-last-output ()
@@ -340,7 +342,7 @@ process."
 
     (define-key map (kbd "M-.")       #'scrim-find-definition)
 
-    (define-key map (kbd "C-c C-z")   #'scrim-show-repl-buffer)
+    (define-key map (kbd "C-c C-z")   #'scrim-show-or-hide-repl-buffer)
     (define-key map (kbd "C-c C-S-o") #'scrim-clear-repl-buffer)
     (define-key map (kbd "C-c C-S-e") #'scrim-repl-buffer-end)
 
