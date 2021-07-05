@@ -1,0 +1,49 @@
+{:deps    {org.clojure/clojure       {:mvn/version "1.10.3"}
+           org.clojure/clojurescript {:mvn/version "1.10.866"}
+           pettomato/devs            {:local/root    "lib/devs"
+                                      :deps/manifest :deps}
+           pettomato/lib             {:local/root    "lib/lib"
+                                      :deps/manifest :deps}}
+ :aliases {:test                     {:extra-paths ["test"]}
+           :clj-runner               {:extra-deps {com.cognitect/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
+                                                                              :sha     "209b64504cb3bd3b99ecfec7937b358a879f55c1"}}
+                                      :main-opts  ["-m" "cognitect.test-runner"]}
+           :cljs-runner              {:extra-deps {olical/cljs-test-runner {:mvn/version "3.8.0"}}
+                                      :main-opts  ["-m" "cljs-test-runner.main"
+                                                   "--out" ".cljs-test-runner-out"]}
+           :clj-repl-server          {:exec-fn   clojure.core.server/start-server
+                                      :exec-args {:name          "clj-repl-server"
+                                                  :port          5555
+                                                  :accept        clojure.core.server/repl
+                                                  :server-daemon false}}
+           :clj-prepl-server         {:exec-fn   clojure.core.server/start-server
+                                      :exec-args {:name          "clj-prepl-server"
+                                                  :port          5555
+                                                  ;;:accept        clojure.core.server/io-prepl
+                                                  :accept        user/my-io-prepl
+                                                  :server-daemon false}}
+           :cljs-node-repl-server    {:exec-fn   clojure.core.server/start-server
+                                      :exec-args {:name          "cljs-node-repl-server"
+                                                  :port          5555
+                                                  :accept        cljs.server.node/repl
+                                                  :args          [{:opts     {:warn-on-undeclared false}
+                                                                   :env-opts {}}]
+                                                  :server-daemon false}}
+           :cljs-browser-repl-server {:exec-fn   clojure.core.server/start-server
+                                      :exec-args {:name          "cljs-browser-repl-server"
+                                                  :port          5555
+                                                  :accept        cljs.server.browser/repl
+                                                  :args          [{:opts     {:warn-on-undeclared false}
+                                                                   :env-opts {}}]
+                                                  :server-daemon false}}
+           :socket                   {:jvm-opts ["-Dclojure.server.repl={:port,5555,:accept,clojure.core.server/repl}"]}
+           :coverage                 {:extra-deps {cloverage/cloverage {:mvn/version "1.2.2"}}
+                                      :main-opts  ["-m" "cloverage.coverage"
+                                                   "--src-ns-path" "src"
+                                                   "--test-ns-path" "test"]
+                                      :exec-fn    cloverage.coverage/run-project
+                                      :exec-args  {:src-ns-path  ["src"]
+                                                   :test-ns-path ["test"]}}
+           :eastwood                 {:main-opts  ["-m" "eastwood.lint" {:source-paths ["src"]
+                                                                         :add-linters  [:unused-fn-args :unused-locals :unused-namespaces :unused-private-vars]}]
+	                                    :extra-deps {jonase/eastwood {:mvn/version "0.4.1"}}}}}
