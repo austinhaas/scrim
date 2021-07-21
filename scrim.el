@@ -630,6 +630,13 @@ namespaces, which are then used in the prompt."
   (interactive)
   (scrim--send (scrim-proc) "#?(:clj (clojure.pprint/pp) :cljs (cljs.pprint/pp))"))
 
+(defun scrim-create-tags (dir-name)
+  "Create tags file."
+  (interactive "DDirectory: ")
+  (eshell-command
+   (format "find %s -type f -name '*.clj[cs]' | xargs etags --append --regex='/[ \\t\\(]*def[a-z]* \\([a-z-!]+\\)/\\1/' --regex='/[ \\t\\(]*ns \\([a-z.]+\\)/\\1/'"
+           dir-name)))
+
 (provide 'scrim)
 
 ;;; scrim.el ends here
