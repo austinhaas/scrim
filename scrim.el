@@ -371,7 +371,8 @@ process."
 \\{scrim-minor-mode-map}"
   :lighter " Scrim"
   :keymap scrim-minor-mode-map
-  (setq-local comint-input-sender 'scrim--send))
+  (setq-local comint-input-sender 'scrim--send)
+  (add-hook 'xref-backend-functions #'scrim--xref-backend nil t))
 
 (define-derived-mode scrim-mode comint-mode "scrim"
   "Major mode for a Clojure REPL.
@@ -634,8 +635,22 @@ namespaces, which are then used in the prompt."
   "Create tags file."
   (interactive "DDirectory: ")
   (eshell-command
-   (format "find %s -type f -name '*.clj[cs]' | xargs etags --append --regex='/[ \\t\\(]*def[a-z]* \\([a-z-!]+\\)/\\1/' --regex='/[ \\t\\(]*ns \\([a-z.]+\\)/\\1/'"
+
+   ;; TODO: Allow user to specify which dirs to exclude.
+
+   (format "cd %s && find . -type f -regex \".*\\.clj[cs]?\" -print | etags --regex='/[ \\t\\(]*def[a-z]* \\([^ ]+\\)/\\1/' --regex='/[ \\t\\(]*ns \\([^ \\)]+\\)/\\1/' -"
            dir-name)))
+
+(require 'etags)
+
+(defun scrim--xref-backend () 'scrim)
+
+(cl-defmethod xref-backend-identifier-at-point ((_backend (eql scrim)))
+  ;; TODO: Trim namespace.
+  (scrim-symbol-at-point))
+
+(cl-defmethod xref-backend-definitions ((_backend (eql scrim)) identifier)
+  (etags--xref-find-definitions identifier))
 
 (provide 'scrim)
 
