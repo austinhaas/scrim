@@ -32,6 +32,7 @@
 ;;; Code:
 
 (require 'ansi-color)
+(require 'arc-mode)
 (require 'cl-lib)
 (require 'clojure-mode)
 (require 'comint)
@@ -325,7 +326,6 @@ process."
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map comint-mode-map)
     (define-key map (kbd "C-c C-q")   #'scrim-quit)
-    (define-key map (kbd "M-.")       #'scrim-find-definition)
     (define-key map (kbd "C-c C-S-o") #'scrim-clear-repl-buffer)
 
     (define-key map (kbd "C-c C-e")   #'scrim-eval-previous-sexp)
@@ -339,8 +339,6 @@ process."
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-S-c") #'scrim-connect)
     (define-key map (kbd "C-c C-q")   #'scrim-quit)
-
-    (define-key map (kbd "M-.")       #'scrim-find-definition)
 
     (define-key map (kbd "C-c C-z")   #'scrim-show-or-hide-repl-buffer)
     (define-key map (kbd "C-c C-S-o") #'scrim-clear-repl-buffer)
@@ -570,57 +568,6 @@ namespaces, which are then used in the prompt."
                  (format "(doseq [v (sort (clojure.repl/apropos %s))] (println v))"
                          str-or-pattern))))
 
-(defun scrim--find-file (url)
-  (require 'arc-mode)
-  (cond ((string-match "^file:\\(.*\\):\\(.*\\)" result)
-         (let ((file (match-string 1 result))
-               (line (string-to-number (match-string 2 result))))
-           (xref-push-marker-stack)
-           (find-file file)
-           (goto-line line)))
-        ((string-match "^\\(jar\\|zip\\):file:\\(.+\\)!/\\(.+\\):\\(.*\\)" url)
-         (when-let* ((archive (match-string 2 url))
-                     (file    (match-string 3 url))
-                     (line    (string-to-number (match-string 4 url)))
-                     (name    (format "%s:%s" archive file)))
-           (cond
-            ((find-buffer-visiting name)
-             (xref-push-marker-stack)
-             (switch-to-buffer (find-buffer-visiting name))
-             (goto-line line))
-            (t
-             (xref-push-marker-stack)
-             (with-current-buffer (generate-new-buffer
-                                   (file-name-nondirectory file))
-               (archive-zip-extract archive file)
-               (set-visited-file-name name)
-               (setq-local default-directory (file-name-directory archive))
-               (setq-local buffer-read-only t)
-               (set-buffer-modified-p nil)
-               (set-auto-mode)
-               (switch-to-buffer (current-buffer))
-               (goto-line line))))))
-        (t
-         nil)))
-
-(defun scrim-find-definition (prompt)
-  (interactive "P")
-  (let ((arg (if prompt
-                 (scrim--prompt "path to source for symbol" (scrim-symbol-at-point))
-               (scrim-symbol-at-point))))
-    (if arg
-        (let* ((clj "(let [{:keys [file line]} (meta (resolve '%s))]
- (cond
-   (nil? file)                 nil
-   (= file \"NO_SOURCE_PATH\") nil
-   :else                       #?(:clj (str (.getResource (clojure.lang.RT/baseLoader) file) \":\" line)
-                                  :cljs nil)))")
-               (result (read (scrim-redirect-result-from-process (scrim-proc) (format clj arg)))))
-          (if (null result)
-              (error "Couldn't find definition for %s. (Was it evaluated in the REPL?)" arg)
-            (scrim--find-file result)))
-      (user-error "No symbol near point"))))
-
 (defun scrim-send-pst ()
   (interactive)
   (scrim--send (scrim-proc) "(clojure.repl/pst)"))
@@ -631,26 +578,144 @@ namespaces, which are then used in the prompt."
   (interactive)
   (scrim--send (scrim-proc) "#?(:clj (clojure.pprint/pp) :cljs (cljs.pprint/pp))"))
 
-(defun scrim-create-tags (dir-name)
-  "Create tags file."
-  (interactive "DDirectory: ")
-  (eshell-command
-
-   ;; TODO: Allow user to specify which dirs to exclude.
-
-   (format "cd %s && find . -type f -regex \".*\\.clj[cs]?\" -print | etags --regex='/[ \\t\\(]*def[a-z]* \\([^ ]+\\)/\\1/' --regex='/[ \\t\\(]*ns \\([^ \\)]+\\)/\\1/' -"
-           dir-name)))
+;;; xref and etags
 
 (require 'etags)
+
+(defun scrim--pos-at-line-column (buffer line column)
+  (save-excursion
+    (with-current-buffer buffer
+      (goto-char (point-min))
+      (forward-line (- line 1))
+      (move-to-column column)
+      (point))))
+
+(defvar scrim--clj-find-definition-template
+  "(let [{:keys [file line column]} (meta (resolve '%s))]
+ (cond
+   (nil? file)                 nil
+   (= file \"NO_SOURCE_PATH\") nil
+   :else                       #?(:clj (list (str (.getResource (clojure.lang.RT/baseLoader) file)) line column)
+                                  :cljs nil)))")
+
+(defun scrim--repl-find-definition-location (symbol)
+  "Uses the REPL to look up the location of the definition of
+`symbol`. Returns a list: (file line column), or nil."
+  (let ((loc (scrim-redirect-result-from-process
+         (scrim-proc)
+         (format scrim--clj-find-definition-template symbol))))
+    (read loc)))
+
+(defun scrim--get-xref (symbol file line column)
+  "Retruns an xref for the given arguments. If the parameters
+specify a location in a jar or zip file, it will attempt to
+extract the file from the archive and load it into a buffer
+before returning an xref."
+  (cond ((string-match "^file:\\(.*\\)" file)
+         (let ((file (match-string 1 file)))
+           (xref-make (prin1-to-string symbol)
+                      (xref-make-file-location file line column))))
+        ((string-match "^\\(jar\\|zip\\):file:\\(.+\\)!/\\(.+\\)" file)
+         ;; Implementation based on archive-extract fn in arc-mode.
+         (let* ((archive (match-string 2 file))
+                (file (match-string 3 file))
+                ;; arc-mode says these next two are usually `eq', except when
+                ;; iname is the downcased ename. I don't know if that is
+                ;; relevant to this implementation.
+                (ename file)
+                (iname file)
+                (arcdir (file-name-directory archive))
+                (arcname (file-name-nondirectory archive))
+                (bufname (concat (file-name-nondirectory file) " (" arcname ")"))
+                (read-only-p t)
+                (arcfilename (expand-file-name (concat arcname ":" iname)))
+                (buffer (get-buffer bufname)))
+           (if (and buffer
+                    (string= (buffer-file-name buffer) arcfilename))
+               nil
+             (setq bufname (generate-new-buffer-name bufname))
+             (setq buffer (get-buffer-create bufname))
+             (with-current-buffer buffer
+               (let ((coding-system-for-read 'prefer-utf-8))
+                 (archive-zip-extract archive file))
+               (setq buffer-file-name arcfilename)
+               (setq buffer-file-truename (abbreviate-file-name buffer-file-name))
+               (setq default-directory arcdir)
+               (add-hook 'write-file-functions #'archive-write-file-member nil t)
+               (archive-set-buffer-as-visiting-file ename)
+               (setq buffer-read-only t)
+               (setq buffer-undo-list nil)
+               (set-buffer-modified-p nil)
+               (setq buffer-saved-size (buffer-size))
+               (normal-mode)
+               (run-hooks 'archive-extract-hook))
+             (archive-maybe-update t))
+           (when (buffer-name buffer)
+             (xref-make (prin1-to-string symbol)
+                        (xref-make-buffer-location
+                         buffer
+                         (scrim--pos-at-line-column buffer line column))))))))
+
+(defun scrim--find-definition (symbol)
+  (when-let ((loc (scrim--repl-find-definition-location symbol)))
+    (when-let ((xref (scrim--get-xref symbol (nth 0 loc) (nth 1 loc) (nth 2 loc))))
+      (list xref))))
+
+(defcustom scrim-find-cmd "find"
+  "The find command to use when searching for Clojure files. MacOS users may want to change this to gfind, for example."
+  :type 'string)
+
+(defun scrim-create-tags ()
+  "Create tags file in project root."
+  (interactive)
+  (let* ((pr (project-current t))
+         (root (project-root pr))
+         (default-directory root)
+         (files (project-files pr))
+         (files (cl-remove-if-not (lambda (f)
+                                        (when-let ((ext (file-name-extension f)))
+                                          (string-match "clj[cs]?" ext)))
+                                      files))
+         ;; Make references relative.
+         (files (mapcar (lambda (f) (file-relative-name f root)) files))
+         (status nil)
+         (result (eshell-command-result
+                  (format "etags --output=- --regex='/[ \\t\\(]*def[a-z]* \\([^ ]+\\)/\\1/' --regex='/[ \\t\\(]*ns \\([^\\)]+\\)/\\1/' %s > %s"
+                          (string-join files " ")
+                          (concat root "TAGS"))
+                  'status)))
+    (if (= 0 status)
+        t
+      (error result))))
 
 (defun scrim--xref-backend () 'scrim)
 
 (cl-defmethod xref-backend-identifier-at-point ((_backend (eql scrim)))
-  ;; TODO: Trim namespace.
   (scrim-symbol-at-point))
 
+(cl-defmethod xref-backend-identifier-completion-table ((_backend (eql scrim)))
+  (tags-lazy-completion-table))
+
+(cl-defmethod xref-backend-identifier-completion-ignore-case ((_backend (eql scrim)))
+  (find-tag--completion-ignore-case))
+
 (cl-defmethod xref-backend-definitions ((_backend (eql scrim)) identifier)
-  (etags--xref-find-definitions identifier))
+  ;; Tries to find definitions via the REPL, and if that fails, then by etags.
+  (or (and (get-buffer scrim--buffer-name)
+           (scrim--find-definition identifier))
+      (etags--xref-find-definitions (string-trim-left identifier ".*/"))))
+
+(cl-defmethod xref-backend-apropos ((_backend (eql scrim)) pattern)
+  (etags--xref-find-definitions (xref-apropos-regexp pattern) t))
+
+(cl-defmethod xref-backend-references ((_backend (eql scrim)) identifier)
+  ;; Searches files in the project root, based on the presence of .git. Honors
+  ;; .gitignore.
+  (let* ((pr (project-current t))
+         (default-directory (project-root pr))
+         (regexp (format "\\b%s\\b" (regexp-quote identifier)))
+         (files (project-files pr)))
+    (xref-matches-in-files regexp files)))
 
 (provide 'scrim)
 
