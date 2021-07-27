@@ -370,7 +370,8 @@ process."
   :lighter " Scrim"
   :keymap scrim-minor-mode-map
   (setq-local comint-input-sender 'scrim--send)
-  (add-hook 'xref-backend-functions #'scrim--xref-backend nil t))
+  (add-hook 'xref-backend-functions #'scrim--xref-backend nil t)
+  (setq-local eldoc-documentation-function 'scrim--eldoc-function))
 
 (define-derived-mode scrim-mode comint-mode "scrim"
   "Major mode for a Clojure REPL.
@@ -379,7 +380,8 @@ process."
   (setq comint-prompt-regexp scrim-prompt-regexp)
   (setq mode-line-process '(":%s"))
   (setq-local comint-prompt-read-only scrim-prompt-read-only)
-  (ansi-color-for-comint-mode-on))
+  (ansi-color-for-comint-mode-on)
+  (setq-local eldoc-documentation-function 'scrim--eldoc-function))
 
 
 ;;;; Starting
@@ -657,9 +659,14 @@ before returning an xref."
                          (scrim--pos-at-line-column buffer line column))))))))
 
 (defun scrim--find-definition (symbol)
-  (when-let ((loc (scrim--repl-find-definition-location symbol)))
-    (when-let ((xref (scrim--get-xref symbol (nth 0 loc) (nth 1 loc) (nth 2 loc))))
-      (list xref))))
+  (let* ((ns (clojure-find-ns))
+         (alist (scrim--lookup-db-xref ns symbol))
+         (file (scrim--db-get alist "file"))
+         (line (scrim--db-get alist "line"))
+         (column (scrim--db-get alist "column")))
+    (when (and file (not (string-equal file "NO_SOURCE_PATH")))
+      (when-let ((xref (scrim--get-xref symbol file line column)))
+        (list xref)))))
 
 (defcustom scrim-find-cmd "find"
   "The find command to use when searching for Clojure files. MacOS users may want to change this to gfind, for example."
@@ -716,6 +723,141 @@ before returning an xref."
          (regexp (format "\\b%s\\b" (regexp-quote identifier)))
          (files (project-files pr)))
     (xref-matches-in-files regexp files)))
+
+;;------------------------------------------------------------------------------
+
+;; defvar-local?
+(defvar scrim-db '())
+
+(defun scrim--db-get (db key)
+  (alist-get key db nil nil #'string-equal))
+
+(defun scrim--db-get-in (db keys)
+  (let ((n (length keys)))
+   (cond
+    ((eq n 0) db)
+    ((eq n 1) (scrim--db-get db (car keys)))
+    (t       (scrim--db-get-in
+              (scrim--db-get db (car keys))
+              (cdr keys))))))
+
+(defvar scrim--build-db-clj
+  "(letfn [(clj->elisp [x]
+            (clojure.walk/postwalk
+             (fn [x]
+               (cond
+                 (instance? clojure.lang.Namespace x) (str (ns-name x))
+                 (keyword? x) (name x)
+                 (symbol? x) (str x)
+                 (var? x) (clj->elisp (-> (meta x)
+                                          (update :arglists str)
+                                          (update :file
+                                                  #(cond
+                                                     (nil? %) %
+                                                     (= % \"NO_SOURCE_PATH\") %
+                                                     :else (str (.getResource
+                                                                 (clojure.lang.RT/baseLoader)
+                                                                 %))))))
+                 (boolean? x) (if (true? x) 't nil)
+                 (fn? x) (str x)
+                 (map-entry? x) x
+                 (map? x) (for [[k v] x] (list k '. v))
+                 (coll? x) (seq x)
+                 :else x))
+             x))]
+    ;; It's a lot faster to just use pr-str instead of pprint, but
+    ;; pprint is better for debugging.
+    (with-out-str
+      (clojure.pprint/pprint
+       (clj->elisp
+        (into {} (for [ns (all-ns)]
+                   [ns {'aliases (ns-aliases ns)
+                        'refers  (->> (ns-refers ns)
+                                      ;; To save space, only record the ns the symbol
+                                      ;; belongs to. We can look up the rest of
+                                      ;; the info in that namespace's publics.
+                                      (map (fn [[k v]] [k (:ns (meta v))]))
+                                      ;; Filter out clojure.core, because every ns
+                                      ;; implicitly refers every symbol in it,
+                                      ;; and that would increase the size of the
+                                      ;; db significantly.
+                                      (remove (fn [[k v]] (= 'clojure.core (ns-name v))))
+                                      (into {}))
+                        'publics (ns-publics ns)}]))))))")
+
+(defun scrim--repl-build-db ()
+  (let ((db (scrim-redirect-result-from-process
+             (scrim-proc)
+             scrim--build-db-clj)))
+    (setq scrim-db (read (read db)))
+     (message "Success")))
+
+(defun scrim--save-db ()
+  (let ((f (concat (project-root (project-current t))
+                   ".scrim-db")))
+    (with-temp-buffer
+      (print scrim-db (current-buffer))
+      (write-file f))))
+
+(defun scrim--load-db ()
+  (let ((f (concat (project-root (project-current t))
+                   ".scrim-db")))
+    (if (file-exists-p f)
+        (with-temp-buffer
+          (insert-file-contents f)
+          (setq scrim-db (read (current-buffer))))
+      (setq scrim-db '()))))
+
+(defun scrim--lookup-db (ns table symbol)
+  (scrim--db-get-in scrim-db (list ns table symbol)))
+
+(defun scrim--parse-symbol (symbol)
+  "Returns (ns . sym). ns may be nil or an alias."
+  (if (string-match "^\\(.*\\)/\\(.*\\)" symbol)
+    (let ((ns2 (match-string 1 symbol))
+          (symbol2 (match-string 2 symbol)))
+      (cons ns2 symbol2))
+    (cons nil symbol)))
+
+(defun scrim--expand-parsed-symbol-ns (ns parsed-symbol)
+  (let* ((ns2 (car parsed-symbol))
+         (sym (cdr parsed-symbol))
+         (ns3 (if (null ns2)
+                  (or (scrim--lookup-db ns "refers" sym)
+                      (and (scrim--lookup-db ns "publics" symbol)
+                           ns)
+                      (and (scrim--lookup-db "clojure.core" "publics" symbol)
+                           "clojure.core"))
+                (or (scrim--lookup-db ns "aliases" ns2)
+                    ns2))))
+    (cons ns3 sym)))
+
+(defun scrim--lookup-db-xref (ns symbol)
+  (let ((sym (scrim--expand-parsed-symbol-ns ns (scrim--parse-symbol symbol))))
+    (scrim--lookup-db (car sym) "publics" (cdr sym))))
+
+(defun scrim--lookup-arglists (ns symbol)
+  (scrim--db-get (scrim--lookup-db-xref ns symbol)
+                 "arglists"))
+
+(defvar-local scrim--eldoc-cache nil)
+
+(defun scrim--eldoc-function ()
+  (when (not (nth 4 (syntax-ppss))) ; inside a comment?
+    (when-let ((sym (or (scrim-current-function-symbol)
+                        (scrim-symbol-at-point))))
+      (when (string-match "^[a-zA-Z]" "sym")
+        (cond
+         ((string= sym (car scrim--eldoc-cache)) (cdr scrim--eldoc-cache))
+         (t (let* ((ns     (clojure-find-ns))
+                   (result (or (scrim--lookup-arglists ns sym)
+                               ;;(scrim--get-special-form-signature sym)
+                               "<unknown symbol>"))
+                   (s      (format "%s: %s"
+                                   (propertize sym 'face 'font-lock-function-name-face)
+                                   result)))
+              (setq scrim--eldoc-cache (cons sym s))
+              s)))))))
 
 (provide 'scrim)
 

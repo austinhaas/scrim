@@ -15,21 +15,6 @@
 (add-hook 'clojure-mode-hook #'enable-paredit-mode)
 (add-hook 'clojure-mode-hook #'hs-minor-mode)
 
-(require 'scrim-eldoc) ;; Eldoc support is alpha.
-
-;; This would normally be set in the major or minor mode, but scrim's eldoc
-;; support is currently alpha, and we want it to be separate.
-(defun scrim-eldoc-init ()
-  (add-function :before-until
-                (local 'eldoc-documentation-function)
-                'scrim-mode-eldoc-function))
-
-(add-hook 'scrim-mode-hook #'scrim-eldoc-init)
-(add-hook 'scrim-mode-hook 'eldoc-mode 'append) ;; The 'append argument makes it come after the previous hook.
-
-(add-hook 'scrim-minor-mode-hook #'scrim-eldoc-init)
-(add-hook 'scrim-minor-mode-hook 'eldoc-mode 'append) ;; The 'append argument makes it come after the previous hook.
-
 (add-hook 'scrim-mode-hook #'rainbow-delimiters-mode)
 ;; (add-hook 'scrim-mode-hook 'enable-paredit-mode) ;; Not working, because it binds C-d, which scrim-mode uses to quit.
 
