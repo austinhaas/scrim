@@ -747,10 +747,41 @@ This function depends on scrim--db being initialized."
       (move-to-column column)
       (point))))
 
-;; TODO: Decompose this function. Also, I don't like that this creates a new
-;; buffer, just to return an xref. We might want to return dozens of xrefs, most
-;; of which won't be followed, and we probably don't want to create buffers for
-;; each of those. See file:~/software/emacs-build/share/emacs/28.0.50/lisp/progmodes/xref.el.gz::49
+(defun scrim--archive-extract (archive file)
+  ;; Implementation based on archive-extract fn in arc-mode.
+  (let* (;; arc-mode says these next two are usually `eq', except when
+         ;; iname is the downcased ename. I don't know if that is
+         ;; relevant to this implementation.
+         (ename file)
+         (iname file)
+         (arcdir (file-name-directory archive))
+         (arcname (file-name-nondirectory archive))
+         (bufname (concat (file-name-nondirectory file) " (" arcname ")"))
+         (read-only-p t)
+         (arcfilename (expand-file-name (concat arcname ":" iname)))
+         (buffer (get-buffer bufname)))
+    (if (and buffer
+             (string= (buffer-file-name buffer) arcfilename))
+        buffer
+      (setq bufname (generate-new-buffer-name bufname))
+      (setq buffer (get-buffer-create bufname))
+      (with-current-buffer buffer
+        (let ((coding-system-for-read 'prefer-utf-8))
+          (archive-zip-extract archive file))
+        (setq buffer-file-name arcfilename)
+        (setq buffer-file-truename (abbreviate-file-name buffer-file-name))
+        (setq default-directory arcdir)
+        (add-hook 'write-file-functions #'archive-write-file-member nil t)
+        (archive-set-buffer-as-visiting-file ename)
+        (setq buffer-read-only t)
+        (setq buffer-undo-list nil)
+        (set-buffer-modified-p nil)
+        (setq buffer-saved-size (buffer-size))
+        (normal-mode)
+        (run-hooks 'archive-extract-hook))
+      (archive-maybe-update t)
+      buffer)))
+
 (defun scrim--get-xref (symbol file line column)
   "Retuns an xref for the given arguments. If the parameters
 specify a location in a jar or zip file, it will attempt to
@@ -761,40 +792,9 @@ before returning an xref."
            (xref-make (prin1-to-string symbol)
                       (xref-make-file-location file line column))))
         ((string-match "^\\(jar\\|zip\\):file:\\(.+\\)!/\\(.+\\)" file)
-         ;; Implementation based on archive-extract fn in arc-mode.
          (let* ((archive (match-string 2 file))
                 (file (match-string 3 file))
-                ;; arc-mode says these next two are usually `eq', except when
-                ;; iname is the downcased ename. I don't know if that is
-                ;; relevant to this implementation.
-                (ename file)
-                (iname file)
-                (arcdir (file-name-directory archive))
-                (arcname (file-name-nondirectory archive))
-                (bufname (concat (file-name-nondirectory file) " (" arcname ")"))
-                (read-only-p t)
-                (arcfilename (expand-file-name (concat arcname ":" iname)))
-                (buffer (get-buffer bufname)))
-           (if (and buffer
-                    (string= (buffer-file-name buffer) arcfilename))
-               nil
-             (setq bufname (generate-new-buffer-name bufname))
-             (setq buffer (get-buffer-create bufname))
-             (with-current-buffer buffer
-               (let ((coding-system-for-read 'prefer-utf-8))
-                 (archive-zip-extract archive file))
-               (setq buffer-file-name arcfilename)
-               (setq buffer-file-truename (abbreviate-file-name buffer-file-name))
-               (setq default-directory arcdir)
-               (add-hook 'write-file-functions #'archive-write-file-member nil t)
-               (archive-set-buffer-as-visiting-file ename)
-               (setq buffer-read-only t)
-               (setq buffer-undo-list nil)
-               (set-buffer-modified-p nil)
-               (setq buffer-saved-size (buffer-size))
-               (normal-mode)
-               (run-hooks 'archive-extract-hook))
-             (archive-maybe-update t))
+                (buffer (scrim--archive-extract archive file)))
            (when (buffer-name buffer)
              (xref-make (prin1-to-string symbol)
                         (xref-make-buffer-location
