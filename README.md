@@ -49,8 +49,8 @@ I've included a couple init files that you can use as reference. This is what I
 use to initialize scrim. You will probably only want to take what you want and
 modify as necessary.
 
-[A minimal configuration](scrim-init-minimal.el)
-[Extra](scrim-init-extra.el) (experimental)
+* [A minimal configuration](scrim-init-minimal.el)
+* [Extra](scrim-init-extra.el) (experimental)
 
 ## Usage
 
