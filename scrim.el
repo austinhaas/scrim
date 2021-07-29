@@ -739,14 +739,6 @@ This function depends on scrim--db being initialized."
 
 ;;;; xref
 
-(defun scrim--pos-at-line-column (buffer line column)
-  (save-excursion
-    (with-current-buffer buffer
-      (goto-char (point-min))
-      (forward-line (- line 1))
-      (move-to-column column)
-      (point))))
-
 (defun scrim--archive-extract (archive file)
   ;; Implementation based on archive-extract fn in arc-mode.
   (let* (;; arc-mode says these next two are usually `eq', except when
@@ -782,6 +774,39 @@ This function depends on scrim--db being initialized."
       (archive-maybe-update t)
       buffer)))
 
+(defclass scrim--xref-archive-location (xref-location)
+  ((archive :type string :initarg :archive)
+   (file :type string :initarg :file)
+   (line :type fixnum :initarg :line :reader xref-location-line)
+   (column :type fixnum :initarg :column :reader xref-file-location-column))
+  :documentation "An archive location is an archive/file/line/column quadruple.
+Line numbers start from 1 and columns from 0.")
+
+(defun scrim--xref-make-archive-location (archive file line column)
+  "Create and return a new `scrim--xref-archive-location'."
+  (make-instance 'scrim--xref-archive-location :archive archive :file file :line line :column column))
+
+(cl-defmethod xref-location-marker ((l scrim--xref-archive-location))
+  (with-slots (archive file line column) l
+    (with-current-buffer
+        (scrim--archive-extract archive file)
+      (save-restriction
+        (widen)
+        (save-excursion
+          (goto-char (point-min))
+          (ignore-errors
+            ;; xref location may be out of date; it may be past the
+            ;; end of the current file, or the file may have been
+            ;; deleted. Return a reasonable location; the user will
+            ;; figure it out.
+            (beginning-of-line line)
+            (forward-char column))
+          (point-marker))))))
+
+(cl-defmethod xref-location-group ((l scrim--xref-archive-location))
+  (with-slots (archive file) l
+    (concat (file-name-nondirectory file) " (" archive ")")))
+
 (defun scrim--get-xref (symbol file line column)
   "Retuns an xref for the given arguments. If the parameters
 specify a location in a jar or zip file, it will attempt to
@@ -793,13 +818,9 @@ before returning an xref."
                       (xref-make-file-location file line column))))
         ((string-match "^\\(jar\\|zip\\):file:\\(.+\\)!/\\(.+\\)" file)
          (let* ((archive (match-string 2 file))
-                (file (match-string 3 file))
-                (buffer (scrim--archive-extract archive file)))
-           (when (buffer-name buffer)
-             (xref-make (prin1-to-string symbol)
-                        (xref-make-buffer-location
-                         buffer
-                         (scrim--pos-at-line-column buffer line column))))))))
+                (file (match-string 3 file)))
+           (xref-make (prin1-to-string symbol)
+                      (scrim--xref-make-archive-location archive file line column))))))
 
 (defun scrim--find-definition (symbol)
   "This function depends on scrim--db."
@@ -844,7 +865,15 @@ before returning an xref."
                             (if (and file (not (string-equal file "NO_SOURCE_PATH")))
                                 (when-let ((xref (scrim--get-xref symbol file line column)))
                                   xref)
-                              (xref-make-bogus-location "NO_SOURCE_PATH"))))
+                              ;; TODO: Determine how to handle vars that were
+                              ;; evaluated in the REPL. If we use this bogus
+                              ;; location xref, an error will be thrown if any
+                              ;; of these are returned. If we use nil, the var
+                              ;; will be silently elided. Maybe we should return
+                              ;; a buffer xref to the REPL?
+
+                              ;;(xref-make-bogus-location "NO_SOURCE_PATH")
+                              nil)))
                         (seq-filter (lambda (x) (string-match regexp (car x)))
                                     (seq-remove #'null
                                                 (apply #'append
