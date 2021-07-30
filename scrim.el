@@ -727,7 +727,8 @@ This function depends on scrim--db being initialized."
          (t (let* ((ns (clojure-find-ns))
                    (sym-alist (scrim--lookup-db-xref ns sym))
                    (s (when sym-alist
-                        (if-let ((arglist (scrim--lookup-arglists ns sym)))
+                        (if-let ((arglist (scrim--db-get (scrim--lookup-db-xref ns sym)
+                                                         "arglists")))
                             (format "%s: %s"
                                     (propertize sym 'face 'font-lock-function-name-face)
                                     arglist)
