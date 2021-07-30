@@ -609,7 +609,7 @@ namespaces, which are then used in the prompt."
                (keyword? x) (name x)
                (symbol? x) (str x)
                (var? x) (-> (select-keys (meta x) [:arglists :file :column :line :ns])
-                            (update :arglists str)
+                            (update :arglists (fn [x] (if x (str x) nil)))
                             (update :ns (comp str ns-name))
                             (update :file
                                     #(cond
@@ -711,10 +711,6 @@ This function depends on scrim--db being initialized."
   (let ((sym (scrim--parse-symbol-found-in-ns ns symbol)))
     (scrim--db-get-in scrim--db (car sym) "publics" (cdr sym))))
 
-(defun scrim--lookup-arglists (ns symbol)
-  (scrim--db-get (scrim--lookup-db-xref ns symbol)
-                 "arglists"))
-
 
 ;;;; eldoc
 
@@ -727,13 +723,15 @@ This function depends on scrim--db being initialized."
       (when (string-match "^[a-zA-Z]" sym)
         (cond
          ((string= sym (car scrim--eldoc-cache)) (cdr scrim--eldoc-cache))
-         (t (let* ((ns     (clojure-find-ns))
-                   (result (or (scrim--lookup-arglists ns sym)
-                               ;;(scrim--get-special-form-signature sym)
-                               "<unknown symbol>"))
-                   (s      (format "%s: %s"
-                                   (propertize sym 'face 'font-lock-function-name-face)
-                                   result)))
+         (t (let* ((ns (clojure-find-ns))
+                   (sym-alist (scrim--lookup-db-xref ns sym))
+                   (s (when sym-alist
+                        (if-let ((arglist (scrim--lookup-arglists ns sym)))
+                            (format "%s: %s"
+                                    (propertize sym 'face 'font-lock-function-name-face)
+                                    arglist)
+                          (format "%s"
+                                  (propertize sym 'face 'font-lock-function-name-face))))))
               (setq scrim--eldoc-cache (cons sym s))
               s)))))))
 
