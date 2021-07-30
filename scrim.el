@@ -4,7 +4,7 @@
 ;;
 ;; Author: Austin Haas <austin@pettomato.com>
 ;; URL: http://github.com/austinhaas/scrim
-;; Version: 0.0.5
+;; Version: 0.0.6-SNAPSHOT
 
 ;; This file is not part of GNU Emacs.
 
@@ -41,7 +41,7 @@
 (require 'xref)
 
 
-(defconst scrim-version "0.0.5"
+(defconst scrim-version "0.0.6-SNAPSHOT"
   "The current version of `Scrim'.")
 
 ;;;; Utility
