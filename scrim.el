@@ -591,6 +591,7 @@ namespaces, which are then used in the prompt."
   (alist-get key db nil nil #'string-equal))
 
 (defun scrim--db-get-in (db &rest keys)
+  "Finds a value in a nested alist, where all keys are strings."
   (let ((n (length keys)))
    (cond
     ((eq n 0) db)
@@ -777,8 +778,8 @@ This function depends on scrim--db being initialized."
 (defclass scrim--xref-archive-location (xref-location)
   ((archive :type string :initarg :archive)
    (file :type string :initarg :file)
-   (line :type fixnum :initarg :line :reader xref-location-line)
-   (column :type fixnum :initarg :column :reader xref-file-location-column))
+   (line :type fixnum :initarg :line)
+   (column :type fixnum :initarg :column))
   :documentation "An archive location is an archive/file/line/column quadruple.
 Line numbers start from 1 and columns from 0.")
 
@@ -839,12 +840,13 @@ before returning an xref."
   (scrim-symbol-at-point))
 
 (cl-defmethod xref-backend-identifier-completion-table ((_backend (eql scrim)))
-  ;; See `tags-lazy-completion-table` and `tags-completion-table` functions for implementation examples.
+  ;; This supports find-definition and find-references.
 
-  ;; The only tricky bit with this, other than learning how these things are
-  ;; implemented, is navigating the refers, aliases, etc.
-
-  (error "Not implemented."))
+  ;; TODO: Cache this table.
+  (mapcan (lambda (ns)
+            (mapcar (lambda (sym) (concat (car ns) "/" (car sym)))
+                    (scrim--db-get ns "publics")))
+          scrim--db))
 
 (cl-defmethod xref-backend-identifier-completion-ignore-case ((_backend (eql scrim)))
   nil)
@@ -881,22 +883,49 @@ before returning an xref."
                                                                scrim--db))))))))
 
 (cl-defmethod xref-backend-references ((_backend (eql scrim)) identifier)
-  ;; We should be able to narrow this greatly by first determining which
-  ;; namespaces refer to which others.
+  ;; This has some limitations:
 
-  ;; 1. Lookup symbol in current ns.
-  ;; 2. Get symbol's ns.
-  ;; 3. Find all ns that depend on symbol's ns.
-  ;; 4. Determine what the symbol would look like in that ns. (e.g., add alias).
-  ;; 5. Find all occurrences in the buffer associated with that ns.
+  ;;   `identifier` must be a fully qualified symbol.
 
-  ;; How do we map from namespaces to buffers? If a namespace has no symbols of
-  ;; its own, it won't be referenced in the db. (That should be rare.)
+  ;;   Doesn't find symbols in jars, even if they are already extracted into
+  ;;   buffers, because the location type for xref-match-item is
+  ;;   xref-file-location.
 
-  ;; TODO: Add a prefix option to narrow the namespaces to some other ns. E.g.,
-  ;; to search for all refs to some clojure.core fn in your own project.
+  ;;   Doesn't detect references via :use.
 
-  (error "Not implemented."))
+  ;;   Doesn't find fully qualified symbols, unless they are also mentioned in
+  ;;   the namespace's refers or aliases.
+
+  ;;   Doesn't find symbols evaluated in the REPL.
+
+  (let* ((parsed-symbol (scrim--parse-symbol identifier))
+         (symbol-ns (car parsed-symbol))
+         (symbol-name (cdr parsed-symbol)))
+    (mapcan (lambda (ns)
+              ;; HACK! Getting the file from the ns based on the first public
+              ;; symbol in that ns.
+              (let* ((file (seq-some (lambda (file)
+                                       (if (string-prefix-p "file:" file)
+                                           (string-remove-prefix "file:" file)
+                                         nil))
+                                     (mapcar
+                                      (lambda (x) (scrim--db-get x "file"))
+                                      (scrim--db-get ns "publics"))))
+                     (refers (or (string-equal (scrim--db-get-in ns "refers" symbol-name) symbol-ns)
+                                 (and (string-equal "clojure.core" symbol-ns)
+                                      (scrim--db-get-in scrim--db "clojure.core" "publics" symbol-name))))
+                     (alias (seq-some (lambda (x)
+                                        (and (string-equal (cdr x) symbol-ns)
+                                             (car x)))
+                                      (scrim--db-get-in ns "aliases")))
+                     (strings (seq-remove #'null
+                                          (list (and refers symbol-name)
+                                                (and alias (concat alias "/" symbol-name)))))
+                     (regexp (when strings
+                               (regexp-opt strings 'words)))) ;; Why doesn't 'symbols work?
+                (when (and file regexp)
+                  (xref-matches-in-files regexp (list file)))))
+            scrim--db)))
 
 (provide 'scrim)
 
