@@ -371,6 +371,7 @@ process."
   :keymap scrim-minor-mode-map
   (setq-local comint-input-sender 'scrim--send)
   (add-hook 'xref-backend-functions #'scrim--xref-backend nil t)
+  (add-hook 'completion-at-point-functions #'scrim--tags-completion-at-point nil t)
   (setq-local eldoc-documentation-function 'scrim--eldoc-function))
 
 (define-derived-mode scrim-mode comint-mode "scrim"
@@ -924,6 +925,34 @@ before returning an xref."
                 (when (and file regexp)
                   (xref-matches-in-files regexp (list file)))))
             scrim--db)))
+
+
+;;;; Completion
+
+;; TODO: Cache this?
+;; TODO: Check if there is a function to optimize completion tables.
+(defun scrim--tags-completion-at-point ()
+  (let* ((sym (scrim-symbol-at-point))
+         (start (beginning-of-thing 'symbol))
+         (end (end-of-thing 'symbol))
+         (props nil)
+         (ns (clojure-find-ns))
+         (ns-alist (scrim--db-get-in scrim--db ns))
+         (publics (scrim--db-get ns-alist "publics"))
+         (refers (scrim--db-get ns-alist "refers"))
+         (aliases (scrim--db-get ns-alist "aliases"))
+         (collection (nconc
+                      (mapcar #'car (scrim--db-get-in scrim--db "clojure.core" "publics"))
+                      (mapcar #'car publics)
+                      (mapcar #'car refers)
+                      (mapcan (lambda (x)
+                                (let* ((alias (car x))
+                                       (alias-ns (cdr x))
+                                       (alias-publics (scrim--db-get-in scrim--db alias-ns "publics")))
+                                  (mapcar (lambda (x) (concat alias "/" (car x)))
+                                          alias-publics)))
+                              aliases))))
+    (cons start (cons end (cons collection props)))))
 
 (provide 'scrim)
 
