@@ -31,7 +31,6 @@
 
 ;;; Code:
 
-(require 'ansi-color)
 (require 'arc-mode)
 (require 'cl-lib)
 (require 'clojure-mode)
@@ -381,7 +380,6 @@ process."
   (setq comint-prompt-regexp scrim-prompt-regexp)
   (setq mode-line-process '(":%s"))
   (setq-local comint-prompt-read-only scrim-prompt-read-only)
-  (ansi-color-for-comint-mode-on)
   (setq-local eldoc-documentation-function 'scrim--eldoc-function))
 
 
