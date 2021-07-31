@@ -43,21 +43,6 @@
 (defconst scrim-version "0.0.6-SNAPSHOT"
   "The current version of `Scrim'.")
 
-;;;; Utility
-
-;; TODO: Replace this with completing-read.
-(defun scrim--prompt (prompt default)
-  "Prompt user for input. If default is not nil, it will be
-included in the prompt, and returned as the value if the user
-enters a blank string."
-  (let* ((prompt (if default
-                     (format "%s (default %s): " prompt default)
-                   (format "%s: " prompt)))
-         (ans    (read-string prompt)))
-    (if (string-blank-p ans)
-        default
-      ans)))
-
 ;;;; Functions to extract expressions from Clojure buffers
 
 (defun scrim-symbol-at-point ()
@@ -177,13 +162,13 @@ exist."
 
 (defun scrim-clear-repl-buffer ()
   "Clear the Scrim REPL buffer."
-  (interactive)
+  (interactive nil scrim-mode scrim-minor-mode)
   (with-current-buffer scrim--buffer-name
     (comint-clear-buffer)
     (goto-char (point-max))))
 
 (defun scrim-repl-buffer-end ()
-  (interactive)
+  (interactive nil scrim-mode scrim-minor-mode)
   (if (get-buffer scrim--buffer-name)
       (set-window-point (get-buffer-window scrim--buffer-name "visible")
                         (process-mark (scrim-proc)))
@@ -193,7 +178,7 @@ exist."
   "Show the Scrim REPL buffer, if it exists and is not already
 visible, or if it is visible, replace it with the previous
 buffer."
-  (interactive)
+  (interactive nil scrim-mode scrim-minor-mode)
   (if (get-buffer scrim--buffer-name)
       (let ((window (get-buffer-window scrim--buffer-name "visible")))
         (if window
@@ -263,7 +248,7 @@ Adapted from comint-redirect-results-list-from-process."
   "Send each toplevel expression in the region bound by start and
 end to the REPL process, one at a time. Note that toplevel here
 is scoped to the region."
-  (interactive "r")
+  (interactive "r" scrim-minor-mode)
   (mapc (lambda (sexp)
           ;; Give the process a chance to reply before the next input,
           ;; so that input and output are interleaved in the buffer.
@@ -275,11 +260,11 @@ is scoped to the region."
   "Send each expression in the accessible portion of current
 buffer to the REPL process, one at a time. You can use C-x n n to
 limit the part of buffer to be evaluated."
-  (interactive)
+  (interactive nil scrim-minor-mode)
   (scrim-eval-region (point-min) (point-max)))
 
 (defun scrim-eval-around-or-previous-sexp ()
-  (interactive)
+  (interactive nil scrim-minor-mode)
   (let ((s (scrim-outer-around-or-previous-sexp)))
     (if s
         (scrim--send (scrim-proc) s)
@@ -288,7 +273,7 @@ limit the part of buffer to be evaluated."
 (defun scrim-eval-previous-sexp ()
   "Send the expression nearest to point to the REPL
 process."
-  (interactive)
+  (interactive nil scrim-minor-mode)
   (let ((s (scrim-previous-sexp)))
     (if s
         (scrim--send (scrim-proc) s)
@@ -296,7 +281,7 @@ process."
 
 (defun scrim-quit ()
   "Send EOF to the Scrim REPL process."
-  (interactive)
+  (interactive nil scrim-minor-mode)
   (if (get-buffer scrim--buffer-name)
       (with-current-buffer scrim--buffer-name
         (comint-send-eof))
@@ -413,7 +398,7 @@ JVM_OPTS='-Dclojure.server.myrepl={:port,5555,:accept,clojure.core.server/repl}'
 Also, if PROGRAM is a string, the program will be run from the
 directory of the current buffer. We need to determine how to
 select a directory as the project root."
-  (interactive (list (scrim--prompt "program" "clojure")))
+  (interactive (list (read-string "program: " "clojure")))
   (if (get-buffer-process scrim--buffer-name)
       (user-error "Already connected.")
     (message "Starting Clojure REPL.")
@@ -436,50 +421,33 @@ select a directory as the project root."
 ;;;###autoload
 (defun scrim-connect (host port)
   "Same as (scrim '(host . port))."
-  (interactive (list (scrim--prompt "host" scrim-default-host)
-                     (scrim--prompt "port" scrim-default-port)))
+  (interactive (list (read-string "host: " scrim-default-host)
+                     (read-number "port: " scrim-default-port)))
   (scrim (cons host port)))
 
 
 ;;;; Commands that build common Clojure expressions, usually based on symbols near point, and send
 ;;;; them to the REPL.
 
-(defmacro scrim--cmd (name prompt value-fn format-string error-msg)
-  "Macro for defining simple commands that compose a Clojure
-expression, usually based on some symbol near point, and send it
-to the REPL process. If the function receives an optional prefix
-argument, it will prompt for input."
-  `(defun ,name (prompt)
-     (interactive "P")
-     (let ((arg (if prompt
-                    (scrim--prompt ,prompt (funcall ,value-fn))
-                  (funcall ,value-fn))))
-       (if arg
-           (scrim--send (scrim-proc) (format ,format-string arg))
-         (user-error ,error-msg)))))
-
 ;;; core
 
-(scrim--cmd scrim-send-require
-            "require ns"
-            'clojure-find-ns
-            "(require '%s)"
-            "Namespace not found")
+(defun scrim-send-require (ns)
+  (interactive (list (read-string "require ns: " (clojure-find-ns)))
+               scrim-mode scrim-minor-mode)
+  (scrim--send (scrim-proc) (format "(require '%s)" ns)))
 
-(scrim--cmd scrim-send-in-ns
-            "Set namespace to symbol"
-            'clojure-find-ns
-            "(in-ns '%s)"
-            "Namespace not found")
+(defun scrim-send-in-ns (ns)
+  (interactive (list (read-string "in ns: " (clojure-find-ns)))
+               scrim-mode scrim-minor-mode)
+  (scrim--send (scrim-proc) (format "(in-ns '%s)" ns)))
 
-(scrim--cmd scrim-send-arglists
-            "arglists for fn"
-            'scrim-current-function-symbol
-            "(:arglists (meta (resolve '%s)))"
-            "No function near point")
+(defun scrim-send-arglists (fn)
+  (interactive (list (read-string "arglists for fn: " (scrim-current-function-symbol)))
+               scrim-mode scrim-minor-mode)
+  (scrim--send (scrim-proc) (format "(:arglists (meta (resolve '%s)))" fn)))
 
 (defun scrim-send-macroexpand (&optional macro-1)
-  (interactive "P")
+  (interactive "P" scrim-mode scrim-minor-mode)
   (let ((expr (scrim-previous-sexp)))
     (if expr
         (scrim--send (scrim-proc) (format (if macro-1
@@ -490,7 +458,9 @@ argument, it will prompt for input."
 
 (defun scrim-send-load-file (file)
   "Sends (clojure.core/load-file file) to the REPL."
-  (interactive (list (expand-file-name (read-file-name "file: " nil buffer-file-name t (file-name-nondirectory buffer-file-name)))))
+  (interactive (list (expand-file-name
+                      (read-file-name "file: " nil buffer-file-name t (file-name-nondirectory buffer-file-name)))
+                     scrim-mode scrim-minor-mode))
   (comint-check-source file)
   (if file
       (scrim--send (scrim-proc) (format "(load-file \"%s\")" file))
@@ -498,11 +468,10 @@ argument, it will prompt for input."
 
 ;;; repl
 
-(scrim--cmd scrim-send-doc
-            "doc for symbol"
-            'scrim-symbol-at-point
-            "(clojure.repl/doc %s)"
-            "No symbol near point")
+(defun scrim-send-doc (symbol)
+  (interactive (list (read-string "doc for symbol: " (scrim-symbol-at-point)))
+               scrim-mode scrim-minor-mode)
+  (scrim--send (scrim-proc) (format "(clojure.repl/doc %s)" symbol)))
 
 (defun scrim-send-source (n)
   "Sends (clojure.repl/source n) to the REPL.
@@ -535,7 +504,8 @@ prompt."
                                                    syms
                                                    nil
                                                    t)))
-                        (string-join (list ns sym) "/"))))))
+                        (string-join (list ns sym) "/")))))
+               scrim-mode scrim-minor-mode)
   (if n
       (scrim--send (scrim-proc) (format "(clojure.repl/source %s)" n))
     (user-error "No name found")))
@@ -556,13 +526,15 @@ namespaces, which are then used in the prompt."
                                    t
                                    nil
                                    nil
-                                   ns))))
+                                   ns)))
+               scrim-mode scrim-minor-mode)
   (if nsname
       (scrim--send (scrim-proc) (format "(clojure.repl/dir %s)" nsname))
     (user-error "No namespace found")))
 
 (defun scrim-send-apropos (str-or-pattern)
-  (interactive (list (read-string "apropos for str-or-pattern: ")))
+  (interactive (list (read-string "apropos for str-or-pattern: "))
+               scrim-mode scrim-minor-mode)
   (if (equal "" str-or-pattern)
       (user-error "You didn't specify a string or pattern")
     (scrim--send (scrim-proc)
@@ -570,13 +542,13 @@ namespaces, which are then used in the prompt."
                          str-or-pattern))))
 
 (defun scrim-send-pst ()
-  (interactive)
+  (interactive nil scrim-mode scrim-minor-mode)
   (scrim--send (scrim-proc) "(clojure.repl/pst)"))
 
 ;;; pretty print
 
 (defun scrim-send-pp ()
-  (interactive)
+  (interactive nil scrim-mode scrim-minor-mode)
   (scrim--send (scrim-proc) "#?(:clj (clojure.pprint/pp) :cljs (cljs.pprint/pp))"))
 
 
@@ -643,7 +615,7 @@ namespaces, which are then used in the prompt."
                      'publics (ns-publics ns)}])))))")
 
 (defun scrim-build-db ()
-  (interactive)
+  (interactive nil scrim-mode scrim-minor-mode)
   (if (get-buffer scrim--buffer-name)
       (let ((progress-reporter (make-progress-reporter "Building database"))
             (db (scrim-redirect-result-from-process
@@ -654,7 +626,7 @@ namespaces, which are then used in the prompt."
     (user-error "Not connected.")))
 
 (defun scrim-save-db ()
-  (interactive)
+  (interactive nil scrim-mode scrim-minor-mode)
   (let ((f (concat (project-root (project-current t))
                    scrim--db-filename)))
     (with-temp-buffer
@@ -663,7 +635,7 @@ namespaces, which are then used in the prompt."
       (message "scrim db saved."))))
 
 (defun scrim-load-db ()
-  (interactive)
+  (interactive nil scrim-mode scrim-minor-mode)
   (let ((f (concat (project-root (project-current t))
                    scrim--db-filename)))
     (if (file-exists-p f)
