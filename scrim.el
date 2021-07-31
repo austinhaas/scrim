@@ -558,18 +558,20 @@ namespaces, which are then used in the prompt."
 
 (defvar scrim--db '())
 
-(defun scrim--db-get (db key)
-  (alist-get key db nil nil #'string-equal))
+(defun scrim--get (alist key &optional default)
+  (if (listp alist)
+      (alist-get key alist default nil #'string-equal)
+    default))
 
-(defun scrim--db-get-in (db &rest keys)
+(defun scrim--get-in (alist keys &optional default)
   "Finds a value in a nested alist, where all keys are strings."
-  (let ((n (length keys)))
-   (cond
-    ((eq n 0) db)
-    ((eq n 1) (scrim--db-get db (car keys)))
-    (t        (apply #'scrim--db-get-in
-                     (scrim--db-get db (car keys))
-                     (cdr keys))))))
+  (if keys
+      (let* ((sentinel (gensym))
+             (result (scrim--get alist (car keys) sentinel)))
+        (if (eq result sentinel)
+            default
+          (scrim--get-in result (cdr keys) default)))
+    alist))
 
 (defvar scrim--build-db-clj
   "(letfn [(clj->elisp [x]
@@ -667,20 +669,20 @@ This function depends on scrim--db being initialized."
          (ns2 (car parsed-symbol))
          (sym (cdr parsed-symbol))
          (ns3 (if (null ns2)
-                  (or (scrim--db-get-in scrim--db ns "refers" sym)
-                      (and (scrim--db-get-in scrim--db ns "publics" symbol)
+                  (or (scrim--get-in scrim--db (list ns "refers" sym))
+                      (and (scrim--get-in scrim--db (list ns "publics" symbol))
                            ns)
                       ;; scrim--build-db-clj elides symbols in clojure.core to
                       ;; save space, so we need to check for them here.
-                      (and (scrim--db-get-in scrim--db "clojure.core" "publics" symbol)
+                      (and (scrim--get-in scrim--db (list "clojure.core" "publics" symbol))
                            "clojure.core"))
-                (or (scrim--db-get-in scrim--db ns "aliases" ns2)
+                (or (scrim--get-in scrim--db (list ns "aliases" ns2))
                     ns2))))
     (cons ns3 sym)))
 
 (defun scrim--lookup-db-xref (ns symbol)
   (let ((sym (scrim--parse-symbol-found-in-ns ns symbol)))
-    (scrim--db-get-in scrim--db (car sym) "publics" (cdr sym))))
+    (scrim--get-in scrim--db (list (car sym) "publics" (cdr sym)))))
 
 
 ;;;; eldoc
@@ -697,7 +699,7 @@ This function depends on scrim--db being initialized."
          (t (let* ((ns (clojure-find-ns))
                    (sym-alist (scrim--lookup-db-xref ns sym))
                    (s (when sym-alist
-                        (if-let ((arglist (scrim--db-get (scrim--lookup-db-xref ns sym)
+                        (if-let ((arglist (scrim--get (scrim--lookup-db-xref ns sym)
                                                          "arglists")))
                             (format "%s: %s"
                                     (propertize sym 'face 'font-lock-function-name-face)
@@ -797,9 +799,9 @@ before returning an xref."
   "This function depends on scrim--db."
   (let* ((ns (clojure-find-ns))
          (alist (scrim--lookup-db-xref ns symbol))
-         (file (scrim--db-get alist "file"))
-         (line (scrim--db-get alist "line"))
-         (column (scrim--db-get alist "column")))
+         (file (scrim--get alist "file"))
+         (line (scrim--get alist "line"))
+         (column (scrim--get alist "column")))
     (when (and file (not (string-equal file "NO_SOURCE_PATH")))
       (when-let ((xref (scrim--get-xref symbol file line column)))
         (list xref)))))
@@ -815,7 +817,7 @@ before returning an xref."
   ;; TODO: Cache this table.
   (mapcan (lambda (ns)
             (mapcar (lambda (sym) (concat (car ns) "/" (car sym)))
-                    (scrim--db-get ns "publics")))
+                    (scrim--get ns "publics")))
           scrim--db))
 
 (cl-defmethod xref-backend-identifier-completion-ignore-case ((_backend (eql scrim)))
@@ -831,9 +833,9 @@ before returning an xref."
                 (mapcar (lambda (x)
                           (let* ((alist (cdr x))
                                  (symbol (car x))
-                                 (file (scrim--db-get alist "file"))
-                                 (line (scrim--db-get alist "line"))
-                                 (column (scrim--db-get alist "column")))
+                                 (file (scrim--get alist "file"))
+                                 (line (scrim--get alist "line"))
+                                 (column (scrim--get alist "column")))
                             (if (and file (not (string-equal file "NO_SOURCE_PATH")))
                                 (when-let ((xref (scrim--get-xref symbol file line column)))
                                   xref)
@@ -849,7 +851,7 @@ before returning an xref."
                         (seq-filter (lambda (x) (string-match regexp (car x)))
                                     (seq-remove #'null
                                                 (apply #'append
-                                                       (mapcar (lambda (ns) (scrim--db-get ns "publics"))
+                                                       (mapcar (lambda (ns) (scrim--get ns "publics"))
                                                                scrim--db))))))))
 
 (cl-defmethod xref-backend-references ((_backend (eql scrim)) identifier)
@@ -879,15 +881,15 @@ before returning an xref."
                                            (string-remove-prefix "file:" file)
                                          nil))
                                      (mapcar
-                                      (lambda (x) (scrim--db-get x "file"))
-                                      (scrim--db-get ns "publics"))))
-                     (refers (or (string-equal (scrim--db-get-in ns "refers" symbol-name) symbol-ns)
+                                      (lambda (x) (scrim--get x "file"))
+                                      (scrim--get ns "publics"))))
+                     (refers (or (string-equal (scrim--get-in ns (list "refers" symbol-name)) symbol-ns)
                                  (and (string-equal "clojure.core" symbol-ns)
-                                      (scrim--db-get-in scrim--db "clojure.core" "publics" symbol-name))))
+                                      (scrim--get-in scrim--db (list "clojure.core" "publics" symbol-name)))))
                      (alias (seq-some (lambda (x)
                                         (and (string-equal (cdr x) symbol-ns)
                                              (car x)))
-                                      (scrim--db-get-in ns "aliases")))
+                                      (scrim--get ns "aliases")))
                      (strings (seq-remove #'null
                                           (list (and refers symbol-name)
                                                 (and alias (concat alias "/" symbol-name)))))
@@ -908,18 +910,18 @@ before returning an xref."
          (end (end-of-thing 'symbol))
          (props nil)
          (ns (clojure-find-ns))
-         (ns-alist (scrim--db-get-in scrim--db ns))
-         (publics (scrim--db-get ns-alist "publics"))
-         (refers (scrim--db-get ns-alist "refers"))
-         (aliases (scrim--db-get ns-alist "aliases"))
+         (ns-alist (scrim--get scrim--db ns))
+         (publics (scrim--get ns-alist "publics"))
+         (refers (scrim--get ns-alist "refers"))
+         (aliases (scrim--get ns-alist "aliases"))
          (collection (nconc
-                      (mapcar #'car (scrim--db-get-in scrim--db "clojure.core" "publics"))
+                      (mapcar #'car (scrim--get-in scrim--db (list "clojure.core" "publics")))
                       (mapcar #'car publics)
                       (mapcar #'car refers)
                       (mapcan (lambda (x)
                                 (let* ((alias (car x))
                                        (alias-ns (cdr x))
-                                       (alias-publics (scrim--db-get-in scrim--db alias-ns "publics")))
+                                       (alias-publics (scrim--get-in scrim--db (list alias-ns "publics"))))
                                   (mapcar (lambda (x) (concat alias "/" (car x)))
                                           alias-publics)))
                               aliases))))
