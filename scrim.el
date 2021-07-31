@@ -152,7 +152,7 @@ around point."
   "Scrim group"
   :prefix "scrim-"
   :group 'clojure
-  :link '(url-link :tag "GitHub" "https://github.com/"))
+  :link '(url-link :tag "GitHub" "https://github.com/austinhaas/scrim"))
 
 (defcustom scrim-prompt-read-only t
   "If t, the prompt in the Scrim REPL buffer is read-only."
