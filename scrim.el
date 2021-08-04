@@ -694,6 +694,7 @@ This function depends on scrim--db being initialized."
     (cons ns3 sym)))
 
 (defun scrim--lookup-db-xref (ns symbol)
+  "This function depends on scrim--db."
   (let ((sym (scrim--parse-symbol-found-in-ns ns symbol)))
     (scrim--get-in scrim--db (list (car sym) "publics" (cdr sym)))))
 
@@ -703,6 +704,7 @@ This function depends on scrim--db being initialized."
 (defvar-local scrim--eldoc-cache nil)
 
 (defun scrim--eldoc-function ()
+  "This function depends on scrim--db."
   (when (not (nth 4 (syntax-ppss))) ; inside a comment?
     (when-let ((sym (or (scrim-current-function-symbol)
                         (scrim-symbol-at-point))))
@@ -825,6 +827,7 @@ before returning an xref."
   (scrim-symbol-at-point))
 
 (cl-defmethod xref-backend-identifier-completion-table ((_backend (eql scrim)))
+  "This implementation depends on scrim--db."
   ;; This supports find-definition and find-references.
 
   ;; TODO: Cache this table.
@@ -837,10 +840,11 @@ before returning an xref."
   nil)
 
 (cl-defmethod xref-backend-definitions ((_backend (eql scrim)) identifier)
-  "This depends on scrim--db."
+  "This implementation depends on scrim--db."
   (scrim--find-definition identifier))
 
 (cl-defmethod xref-backend-apropos ((_backend (eql scrim)) pattern)
+  "This implementation depends on scrim--db."
   (let ((regexp (xref-apropos-regexp pattern)))
     (seq-remove #'null
                 (mapcar (lambda (x)
@@ -868,6 +872,7 @@ before returning an xref."
                                                                scrim--db))))))))
 
 (cl-defmethod xref-backend-references ((_backend (eql scrim)) identifier)
+  "This implementation depends on scrim--db."
   ;; This has some limitations:
 
   ;;   `identifier` must be a fully qualified symbol.
@@ -918,6 +923,7 @@ before returning an xref."
 ;; TODO: Cache this?
 ;; TODO: Check if there is a function to optimize completion tables.
 (defun scrim--tags-completion-at-point ()
+  "This function depends on scrim--db."
   (let* ((sym (scrim-symbol-at-point))
          (start (beginning-of-thing 'symbol))
          (end (end-of-thing 'symbol))
