@@ -35,6 +35,7 @@
 (require 'cl-lib)
 (require 'clojure-mode)
 (require 'comint)
+(require 'project)
 (require 'subr-x)
 (require 'thingatpt)
 (require 'xref)
@@ -42,6 +43,20 @@
 
 (defconst scrim-version "0.0.6-SNAPSHOT"
   "The current version of `Scrim'.")
+
+;;;; Project support
+
+(defvar scrim--project-root-files
+  '("deps.edn" "project.clj" "build.boot"))
+
+(defun scrim--project-find (dir)
+  (seq-some (lambda (file)
+              (when-let ((dir2 (locate-dominating-file dir file)))
+                (cons 'scrim dir2)))
+            scrim--project-root-files))
+
+(cl-defmethod project-root ((project (head scrim)))
+  (cdr project))
 
 ;;;; Functions to extract expressions from Clojure buffers
 
@@ -356,6 +371,7 @@ process."
   (setq-local comint-input-sender 'scrim--send)
   (add-hook 'xref-backend-functions #'scrim--xref-backend nil t)
   (add-hook 'completion-at-point-functions #'scrim--tags-completion-at-point nil t)
+  (add-hook 'project-find-functions #'scrim--project-find nil t)
   (setq-local eldoc-documentation-function 'scrim--eldoc-function))
 
 (define-derived-mode scrim-mode comint-mode "scrim"
@@ -393,20 +409,17 @@ java -Dclojure.server.repl='{:port 5555 :accept clojure.core.server/repl}' -jar 
 
 clj -J-Dclojure.server.myrepl='{:port 5555,:accept,clojure.core.server/repl}'
 
-JVM_OPTS='-Dclojure.server.myrepl={:port,5555,:accept,clojure.core.server/repl}' lein repl
-
-Also, if PROGRAM is a string, the program will be run from the
-directory of the current buffer. We need to determine how to
-select a directory as the project root."
+JVM_OPTS='-Dclojure.server.myrepl={:port,5555,:accept,clojure.core.server/repl}' lein repl"
   (interactive (list (read-string "program: " "clojure")))
   (if (get-buffer-process scrim--buffer-name)
       (user-error "Already connected.")
     (message "Starting Clojure REPL.")
-    (display-buffer (get-buffer-create scrim--buffer-name))
-    (make-comint-in-buffer "scrim" scrim--buffer-name program)
-    (save-excursion
-      (set-buffer scrim--buffer-name)
-      (scrim-mode))))
+    (let ((default-directory (project-root (project-current t))))
+      (display-buffer (get-buffer-create scrim--buffer-name))
+      (make-comint-in-buffer "scrim" scrim--buffer-name program)
+      (save-excursion
+        (set-buffer scrim--buffer-name)
+        (scrim-mode)))))
 
 (defcustom scrim-default-host "localhost"
   "The default host to connect to a REPL socket server."
