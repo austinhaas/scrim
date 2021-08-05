@@ -394,27 +394,16 @@ PROGRAM should be one of the following:
 - a string, denoting an executable program to create via
   ‘start-file-process’
 - a cons pair of the form (HOST . SERVICE), denoting a TCP
-  connection to be opened via ‘open-network-stream’
-
-Note that, if PROGRAM is a string, there is a bug where any
-string longer than 4096 characters sent to the process will be
-truncated. Until we can determine how to work around that, it is
-better to launch the program externally and use the TCP
-connection to connect to it.
-
-Some ways of launching an external Clojure process with a socket
-server:
-
-java -Dclojure.server.repl='{:port 5555 :accept clojure.core.server/repl}' -jar path-to-clojure-jar
-
-clj -J-Dclojure.server.myrepl='{:port 5555,:accept,clojure.core.server/repl}'
-
-JVM_OPTS='-Dclojure.server.myrepl={:port,5555,:accept,clojure.core.server/repl}' lein repl"
+  connection to be opened via ‘open-network-stream’"
   (interactive (list (read-string "program: " "clojure")))
   (if (get-buffer-process scrim--buffer-name)
       (user-error "Already connected.")
-    (message "Starting Clojure REPL.")
-    (let ((default-directory (project-root (project-current t))))
+    (message "Starting a Clojure REPL.")
+    (let ((default-directory (project-root (project-current t)))
+          ;; Binding process-connection-type to nil causes the communication with
+          ;; the subprocess to use a pipe rather than a pty. Without this,
+          ;; expressions longer than 1024 bytes cannot be sent to the subprocess.
+          (process-connection-type nil))
       (display-buffer (get-buffer-create scrim--buffer-name))
       (make-comint-in-buffer "scrim" scrim--buffer-name program)
       (save-excursion

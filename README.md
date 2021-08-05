@@ -57,6 +57,23 @@ modify as necessary.
 The keybindings can be displayed by either using `C-h m` in a Scrim-enabled buffer and then
 selecting `Scrim` under the enabled minor modes, or `C-h f scrim-minor-mode RET`.
 
+### Connecting to a socket server
+
+A few ways to launch an external Clojure process with a socket server from the terminal:
+
+```
+java -Dclojure.server.repl='{:port 5555 :accept clojure.core.server/repl}' -jar path-to-clojure-jar
+
+clj -J-Dclojure.server.myrepl='{:port 5555,:accept,clojure.core.server/repl}'
+
+JVM_OPTS='-Dclojure.server.myrepl={:port,5555,:accept,clojure.core.server/repl}' lein repl
+```
+
+Connect to it in Emacs:
+```
+m-x scrim-connect RET localhost RET 5555 RET
+```
+
 ## Guides
 
 This repository includes a couple simple sample projects with instructions that walk through the
