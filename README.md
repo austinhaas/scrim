@@ -40,7 +40,7 @@ Alpha
 ### Clone the repository
 
 ```sh
-cd ~/.emacs.d/site-lisp  # or wherever you keep locally installed emacs packages
+cd ~/.emacs.d/site-lisp  # or wherever you keep locally installed Emacs packages
 git clone git@github.com:austinhaas/scrim.git
 ```
 ### Update your .emacs
