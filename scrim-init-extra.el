@@ -18,20 +18,6 @@
 (add-hook 'scrim-mode-hook #'rainbow-delimiters-mode)
 ;; (add-hook 'scrim-mode-hook 'enable-paredit-mode) ;; Not working, because it binds C-d, which scrim-mode uses to quit.
 
-;; Add the hideshow minor mode to the scrim REPL buffer.
-;; This has to run after clojure-mode-variables, hence the 'append argument.
-(add-hook 'scrim-mode-hook #'hs-minor-mode 'append)
-
-(defun my-scrim-hide-last-input ()
-  "Collapse the last input in the REPL to a single line, using
-hideshow. You can expand it using the normal hideshow commands."
-  (save-excursion
-    (with-current-buffer scrim--buffer-name
-      (goto-char comint-last-input-end)
-      (backward-sexp)
-      (forward-char)
-      (hs-hide-block))))
-
 (defun my-scrim-echo-output ()
   "Display the last output in the echo area."
   (message "%s" (scrim-last-output)))
@@ -41,10 +27,6 @@ hideshow. You can expand it using the normal hideshow commands."
 output from the Java process."
 
   (when (not (string-equal s "user=> "))
-
-    ;; There may be a better place for this.
-    (my-scrim-hide-last-input)
-
     ;; This function may be called multiple times; each call containing a portion
     ;; of the complete output. For example, after receiving the user's input, this
     ;; function may be called with a blank string, then again with the result, and

@@ -215,6 +215,8 @@ prompt in the REPL."
 
 ;;;; Low-level, comint I/O
 
+;; TODO: Wrap all of the user input in one overlay.
+
 (defun scrim--send-indirectly (proc s)
   "Sends the string s to process proc by first writing s to the
 process buffer and then sending it from there as if a human typed
@@ -227,8 +229,60 @@ it in."
           (end?  (= (point) (point-max))))
       (comint-goto-process-mark)
       (insert s)
+      (save-excursion
+        (let ((e (point)))
+          (goto-char (process-mark (scrim-proc)))
+          (let ((b (line-end-position)))
+            (let ((ov (make-overlay b e)))
+              (overlay-put ov 'scrim t)
+              (overlay-put ov 'invisible 'scrim)
+              (overlay-put ov 'isearch-open-invisible 'scrim--isearch-show)
+              (overlay-put ov 'isearch-open-invisible-temporary 'scrim--isearch-show-temporary)
+              ;; TODO: Lookup keybinding dynamically. See `substitute-command-keys'.
+              ;;(overlay-put ov 'help-echo "\\[scrim--indent-line] to expand input.")
+              ))))
       (comint-send-input)
       (unless end? (goto-char start)))))
+
+(defun scrim--indent-line ()
+  "In the REPL buffer, this attempts to show a hidden input
+expression, otherwise invokes `clojure-indent-line'."
+  (or (scrim-show-repl-input-at-point)
+      (clojure-indent-line)))
+
+(defun scrim--isearch-show (ov)
+  "Delete overlay OV.
+
+This function is meant to be used as the `isearch-open-invisible'
+property of an overlay."
+  (delete-overlay ov))
+
+(defun scrim--isearch-show-temporary (ov hide-p)
+  "Hide or show overlay OV depending on HIDE-P.
+If HIDE-P is non-nil, overlay OV is hidden. Otherwise, OV is
+shown.
+
+This function is meant to be used as the `isearch-open-invisible-temporary'
+property of an overlay."
+  (overlay-put ov 'invisible (and hide-p 'scrim)))
+
+(defun scrim--overlay-at (position)
+  "Return scrim overlay at POSITION, or nil if none to be found."
+  ;; Implementation based on `hs-overlay-at'.
+  (let ((overlays (overlays-at position))
+        ov found)
+    (while (and (not found) (setq ov (car overlays)))
+      (setq found (and (overlay-get ov 'scrim) ov)
+            overlays (cdr overlays)))
+    found))
+
+(defun scrim-show-repl-input-at-point ()
+  (interactive)
+  ;; Very simplified version of `hs-show-block'. See that implementation, if
+  ;; more is needed.
+  (when-let ((ov (scrim--overlay-at (line-end-position))))
+    (delete-overlay ov)
+    (message "Showing input... done")))
 
 (defun scrim--send-directly (proc s)
   "Sends the string s to process proc directly."
@@ -378,10 +432,13 @@ process."
   "Major mode for a Clojure REPL.
 
 \\{scrim-mode-map}"
+  (clojure-mode-variables)
   (setq comint-prompt-regexp scrim-prompt-regexp)
   (setq mode-line-process '(":%s"))
   (setq-local comint-prompt-read-only scrim-prompt-read-only)
-  (setq-local eldoc-documentation-function 'scrim--eldoc-function))
+  (setq-local eldoc-documentation-function 'scrim--eldoc-function)
+  (setq-local indent-line-function #'scrim--indent-line)
+  (add-to-invisibility-spec '(scrim . t)))
 
 
 ;;;; Starting

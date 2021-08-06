@@ -9,5 +9,4 @@
 
 (add-hook 'clojure-mode-hook #'scrim-minor-mode)
 
-(add-hook 'scrim-mode-hook #'clojure-mode-variables)
 (add-hook 'scrim-mode-hook #'clojure-font-lock-setup)
