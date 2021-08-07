@@ -1,3 +1,5 @@
+;; -*- lexical-binding: t; -*-
+
 ;;; scrim.el --- Simple Clojure REPL Interaction Mode
 
 ;; Copyright © 2021 Austin Haas
@@ -46,14 +48,14 @@
 
 ;;;; Project support
 
-(defvar scrim--project-root-files
+(defvar scrim--project-root-file-names
   '("deps.edn" "project.clj" "build.boot"))
 
 (defun scrim--project-find (dir)
-  (seq-some (lambda (file)
-              (when-let ((dir2 (locate-dominating-file dir file)))
-                (cons 'scrim dir2)))
-            scrim--project-root-files))
+  (when-let ((project-root (seq-some (lambda (name)
+                                       (locate-dominating-file dir name))
+                                     scrim--project-root-file-names)))
+    (cons 'scrim project-root)))
 
 (cl-defmethod project-root ((project (head scrim)))
   (cdr project))
@@ -423,19 +425,24 @@ process."
   :lighter " Scrim"
   :keymap scrim-minor-mode-map
   (setq-local comint-input-sender 'scrim--send)
-  (add-hook 'xref-backend-functions #'scrim--xref-backend nil t)
+  (setq-local eldoc-documentation-function 'scrim--eldoc-function)
   (add-hook 'completion-at-point-functions #'scrim--tags-completion-at-point nil t)
   (add-hook 'project-find-functions #'scrim--project-find nil t)
-  (setq-local eldoc-documentation-function 'scrim--eldoc-function))
+  (add-hook 'xref-backend-functions #'scrim--xref-backend nil t))
 
 (define-derived-mode scrim-mode comint-mode "scrim"
   "Major mode for a Clojure REPL.
 
 \\{scrim-mode-map}"
   (clojure-mode-variables)
+  (clojure-font-lock-setup)
   (setq comint-prompt-regexp scrim-prompt-regexp)
   (setq mode-line-process '(":%s"))
   (setq-local comint-prompt-read-only scrim-prompt-read-only)
+  ;; eldoc currently works for symbols in clojure.core and fully-qualified
+  ;; symbols, but nothing else because it doesn't know which ns it is in.
+  ;; Even if we knew the current ns, the repl buffer has input from many
+  ;; namespaces that might not be current.
   (setq-local eldoc-documentation-function 'scrim--eldoc-function)
   (setq-local indent-line-function #'scrim--indent-line)
   (add-to-invisibility-spec '(scrim . t)))
@@ -613,9 +620,82 @@ namespaces, which are then used in the prompt."
 
 ;;;; scrim-db
 
+;; The idea is to create an offline database of Clojure symbol metadata that can
+;; be used to support features like find-definition and eldoc.
+
+(defvar scrim--db nil)
+
 (defvar scrim--db-filename ".scrim-db")
 
-(defvar scrim--db '())
+(defun scrim--db-file-path ()
+  (concat (project-root (project-current t))
+          scrim--db-filename))
+
+(defvar scrim--build-db-clj
+  ;; This produces a clojure value that can be read by emacs lisp.
+  "(letfn [(alist [xs] (for [[k v] xs] (list k '. v)))]
+  (alist (for [ns (all-ns)]
+           [(str (ns-name ns))
+            (alist
+             {\"aliases\"
+              (alist
+               (for [[k v] (ns-aliases ns)]
+                 [(name k) (str (ns-name v))]))
+
+              \"refers\"
+              (alist
+               (for [[k v] (ns-refers ns)
+                     :let  [ns-name (ns-name (:ns (meta v)))]
+                     ;; To save space.
+                     :when (not= 'clojure.core ns-name)]
+                 [(name k) (str ns-name)]))
+
+              \"interns\"
+              (alist
+               (for [[k v] (ns-interns ns)]
+                 [(name k) (alist
+                            (let [m (meta v)]
+                              {\"arglists\" (when-let [x (get m :arglists)] (str x))
+                               \"file\"     (when-let [x (get m :file)]
+                                            (case x
+                                              \"NO_SOURCE_PATH\" x
+                                              (str (.getResource
+                                                    (clojure.lang.RT/baseLoader)
+                                                    x))))
+                               \"column\"   (get m :column)
+                               \"line\"     (get m :line)
+                               \"name\"     (str (get m :name))
+                               \"ns\"       (str (ns-name (get m :ns)))}))]))})])))")
+
+(defun scrim-build-db ()
+  ""
+  (interactive nil scrim-mode scrim-minor-mode)
+  (if (get-buffer scrim--buffer-name)
+      (let ((progress-reporter (make-progress-reporter "Building database"))
+            (db (scrim-redirect-result-from-process (scrim-proc)
+                                                    scrim--build-db-clj)))
+        (setq scrim--db (read db))
+        (progress-reporter-done progress-reporter))
+    (user-error "Not connected.")))
+
+(defun scrim-save-db ()
+  (interactive nil scrim-mode scrim-minor-mode)
+  (message "Saving scrim db...")
+  (with-temp-buffer
+    (print scrim--db (current-buffer))
+    (write-file (scrim--db-file-path)))
+  (message "Saving scrim db...done"))
+
+(defun scrim-load-db ()
+  (interactive nil scrim-mode scrim-minor-mode)
+  (message "Loading scrim db...")
+  (let ((f (scrim--db-file-path)))
+    (if (file-exists-p f)
+        (with-temp-buffer
+          (insert-file-contents f)
+          (setq scrim--db (read (current-buffer)))
+          (message "Loading scrim db...done"))
+      (message "Could not load scrim db."))))
 
 (defun scrim--get (alist key &optional default)
   (if (listp alist)
@@ -632,117 +712,45 @@ namespaces, which are then used in the prompt."
           (scrim--get-in result (cdr keys) default)))
     alist))
 
-(defvar scrim--build-db-clj
-  "(letfn [(clj->elisp [x]
-          (clojure.walk/postwalk
-           (fn [x]
-             (cond
-               (instance? clojure.lang.Namespace x) (str (ns-name x))
-               (keyword? x) (name x)
-               (symbol? x) (str x)
-               (var? x) (-> (select-keys (meta x) [:arglists :file :column :line :ns])
-                            (update :arglists (fn [x] (if x (str x) nil)))
-                            (update :ns (comp str ns-name))
-                            (update :file
-                                    #(cond
-                                       (nil? %) %
-                                       (= % \"NO_SOURCE_PATH\") %
-                                       :else (str (.getResource
-                                                   (clojure.lang.RT/baseLoader)
-                                                   %))))
-                            clj->elisp)
-               (boolean? x) (if (true? x) 't nil)
-               (fn? x) (str x)
-               (map-entry? x) x
-               (map? x) (for [[k v] x] (list k '. v))
-               (coll? x) (seq x)
-               :else x))
-           x))]
-  (pr-str
-    (clj->elisp
-     (into {} (for [ns (all-ns)]
-                [ns {'aliases (ns-aliases ns)
-                     'refers  (->> (ns-refers ns)
-                                   ;; To save space, only record the ns the symbol
-                                   ;; belongs to. We can look up the rest of
-                                   ;; the info in that namespace's publics.
-                                   (map (fn [[k v]] [k (:ns (meta v))]))
-                                   ;; Filter out clojure.core, because every ns
-                                   ;; implicitly refers every symbol in it,
-                                   ;; and that would increase the size of the
-                                   ;; db significantly.
-                                   (remove (fn [[k v]] (= 'clojure.core (ns-name v))))
-                                   (into {}))
-                     'publics (ns-publics ns)}])))))")
-
-(defun scrim-build-db ()
-  (interactive nil scrim-mode scrim-minor-mode)
-  (if (get-buffer scrim--buffer-name)
-      (let ((progress-reporter (make-progress-reporter "Building database"))
-            (db (scrim-redirect-result-from-process
-                 (scrim-proc)
-                 scrim--build-db-clj)))
-        (setq scrim--db (read (read db)))
-        (progress-reporter-done progress-reporter))
-    (user-error "Not connected.")))
-
-(defun scrim-save-db ()
-  (interactive nil scrim-mode scrim-minor-mode)
-  (let ((f (concat (project-root (project-current t))
-                   scrim--db-filename)))
-    (with-temp-buffer
-      (print scrim--db (current-buffer))
-      (write-file f)
-      (message "scrim db saved."))))
-
-(defun scrim-load-db ()
-  (interactive nil scrim-mode scrim-minor-mode)
-  (let ((f (concat (project-root (project-current t))
-                   scrim--db-filename)))
-    (if (file-exists-p f)
-        (with-temp-buffer
-          (insert-file-contents f)
-          (setq scrim--db (read (current-buffer)))
-          (message "scrim db loaded."))
-      (setq scrim--db '())
-      (message "Could not load scrim db."))))
-
 (defvar scrim--symbol-regexp "^\\(.*\\)/\\(.*\\)")
 
 (defun scrim--parse-symbol (symbol)
-  "Returns (ns . symbol). ns may be nil or an alias."
+  "Parse symbol. Returns (symbol-ns . symbol-name). symbol-ns may
+be a fully-qualified namespace, nil, or an alias."
   (if (string-match scrim--symbol-regexp symbol)
-    (let ((ns2 (match-string 1 symbol))
-          (symbol2 (match-string 2 symbol)))
-      (cons ns2 symbol2))
+      (cons (match-string 1 symbol)
+            (match-string 2 symbol))
     (cons nil symbol)))
 
-(defun scrim--parse-symbol-found-in-ns (ns symbol)
-  "Returns (ns . symbol). ns may be nil or an alias.
+(defun scrim--lookup-symbol (current-ns symbol)
+  "Returns the metadata alist associated with symbol in
+scrim--db. The symbol is looked up in the context of
+current-ns. For example, if symbol is str/trim, where str is an
+alias for clojure.string in current-ns, then the metadata
+associated with clojure.string/trim will be returned.
 
-The supplied ns is the ns where symbol was found. The returned ns
-is the ns where symbol is defined.
-
-This function depends on scrim--db being initialized."
+Both args are strings."
   (let* ((parsed-symbol (scrim--parse-symbol symbol))
-         (ns2 (car parsed-symbol))
-         (sym (cdr parsed-symbol))
-         (ns3 (if (null ns2)
-                  (or (scrim--get-in scrim--db (list ns "refers" sym))
-                      (and (scrim--get-in scrim--db (list ns "publics" symbol))
-                           ns)
-                      ;; scrim--build-db-clj elides symbols in clojure.core to
-                      ;; save space, so we need to check for them here.
-                      (and (scrim--get-in scrim--db (list "clojure.core" "publics" symbol))
-                           "clojure.core"))
-                (or (scrim--get-in scrim--db (list ns "aliases" ns2))
-                    ns2))))
-    (cons ns3 sym)))
-
-(defun scrim--lookup-db-xref (ns symbol)
-  "This function depends on scrim--db."
-  (let ((sym (scrim--parse-symbol-found-in-ns ns symbol)))
-    (scrim--get-in scrim--db (list (car sym) "publics" (cdr sym)))))
+         (symbol-ns-local (car parsed-symbol))
+         (symbol-name (cdr parsed-symbol)))
+    (if (null symbol-ns-local)
+        ;; Symbol does not have a namespace component.
+        (or
+         ;; Symbol was refer'd.
+         (when-let ((symbol-ns (scrim--get-in scrim--db (list current-ns "refers" symbol-name))))
+           (scrim--get-in scrim--db (list symbol-ns "interns" symbol-name)))
+         ;; Symbol is in the current ns.
+         (scrim--get-in scrim--db (list current-ns "interns" symbol-name))
+         ;; Symbol is in clojure.core. scrim--build-db-clj elides symbols in
+         ;; clojure.core to save space, so we need to check for it explicitly.
+         (scrim--get-in scrim--db (list "clojure.core" "interns" symbol-name)))
+      ;; Symbol has a namespace component.
+      (or
+       ;; Alias
+       (when-let ((symbol-ns (scrim--get-in scrim--db (list current-ns "aliases" symbol-ns-local))))
+         (scrim--get-in scrim--db (list symbol-ns "interns" symbol-name)))
+       ;; Fully-qualified
+       (scrim--get-in scrim--db (list symbol-ns-local "interns" symbol-name))))))
 
 
 ;;;; eldoc
@@ -751,17 +759,16 @@ This function depends on scrim--db being initialized."
 
 (defun scrim--eldoc-function ()
   "This function depends on scrim--db."
-  (when (not (nth 4 (syntax-ppss))) ; inside a comment?
+  (when (not (nth 4 (syntax-ppss)))    ; inside a comment?
     (when-let ((sym (or (scrim-current-function-symbol)
                         (scrim-symbol-at-point))))
       (when (string-match "^[a-zA-Z]" sym)
         (cond
          ((string= sym (car scrim--eldoc-cache)) (cdr scrim--eldoc-cache))
          (t (let* ((ns (clojure-find-ns))
-                   (sym-alist (scrim--lookup-db-xref ns sym))
-                   (s (when sym-alist
-                        (if-let ((arglist (scrim--get (scrim--lookup-db-xref ns sym)
-                                                         "arglists")))
+                   (alist (scrim--lookup-symbol ns sym))
+                   (s (when alist
+                        (if-let ((arglist (scrim--get alist "arglists")))
                             (format "%s: %s"
                                     (propertize sym 'face 'font-lock-function-name-face)
                                     arglist)
@@ -859,7 +866,7 @@ before returning an xref."
 (defun scrim--find-definition (symbol)
   "This function depends on scrim--db."
   (let* ((ns (clojure-find-ns))
-         (alist (scrim--lookup-db-xref ns symbol))
+         (alist (scrim--lookup-symbol ns symbol))
          (file (scrim--get alist "file"))
          (line (scrim--get alist "line"))
          (column (scrim--get alist "column")))
@@ -879,7 +886,7 @@ before returning an xref."
   ;; TODO: Cache this table.
   (mapcan (lambda (ns)
             (mapcar (lambda (sym) (concat (car ns) "/" (car sym)))
-                    (scrim--get ns "publics")))
+                    (scrim--get ns "interns")))
           scrim--db))
 
 (cl-defmethod xref-backend-identifier-completion-ignore-case ((_backend (eql scrim)))
@@ -914,7 +921,7 @@ before returning an xref."
                         (seq-filter (lambda (x) (string-match regexp (car x)))
                                     (seq-remove #'null
                                                 (apply #'append
-                                                       (mapcar (lambda (ns) (scrim--get ns "publics"))
+                                                       (mapcar (lambda (ns) (scrim--get ns "interns"))
                                                                scrim--db))))))))
 
 (cl-defmethod xref-backend-references ((_backend (eql scrim)) identifier)
@@ -946,10 +953,10 @@ before returning an xref."
                                          nil))
                                      (mapcar
                                       (lambda (x) (scrim--get x "file"))
-                                      (scrim--get ns "publics"))))
+                                      (scrim--get ns "interns"))))
                      (refers (or (string-equal (scrim--get-in ns (list "refers" symbol-name)) symbol-ns)
                                  (and (string-equal "clojure.core" symbol-ns)
-                                      (scrim--get-in scrim--db (list "clojure.core" "publics" symbol-name)))))
+                                      (scrim--get-in scrim--db (list "clojure.core" "interns" symbol-name)))))
                      (alias (seq-some (lambda (x)
                                         (and (string-equal (cdr x) symbol-ns)
                                              (car x)))
@@ -976,19 +983,19 @@ before returning an xref."
          (props nil)
          (ns (clojure-find-ns))
          (ns-alist (scrim--get scrim--db ns))
-         (publics (scrim--get ns-alist "publics"))
+         (interns (scrim--get ns-alist "interns"))
          (refers (scrim--get ns-alist "refers"))
          (aliases (scrim--get ns-alist "aliases"))
          (collection (nconc
-                      (mapcar #'car (scrim--get-in scrim--db (list "clojure.core" "publics")))
-                      (mapcar #'car publics)
+                      (mapcar #'car (scrim--get-in scrim--db (list "clojure.core" "interns")))
+                      (mapcar #'car interns)
                       (mapcar #'car refers)
                       (mapcan (lambda (x)
                                 (let* ((alias (car x))
                                        (alias-ns (cdr x))
-                                       (alias-publics (scrim--get-in scrim--db (list alias-ns "publics"))))
+                                       (alias-interns (scrim--get-in scrim--db (list alias-ns "interns"))))
                                   (mapcar (lambda (x) (concat alias "/" (car x)))
-                                          alias-publics)))
+                                          alias-interns)))
                               aliases))))
     (cons start (cons end (cons collection props)))))
 

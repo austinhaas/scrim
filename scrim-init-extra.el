@@ -10,17 +10,13 @@
 
 (require 'rainbow-delimiters)
 
-(require 'clojure-mode-extra-font-locking)
-(add-hook 'clojure-mode-hook #'rainbow-delimiters-mode)
-(add-hook 'clojure-mode-hook #'enable-paredit-mode)
-(add-hook 'clojure-mode-hook #'hs-minor-mode)
-
 (add-hook 'scrim-mode-hook #'rainbow-delimiters-mode)
 ;; (add-hook 'scrim-mode-hook 'enable-paredit-mode) ;; Not working, because it binds C-d, which scrim-mode uses to quit.
 
 (defun my-scrim-echo-output ()
   "Display the last output in the echo area."
-  (message "%s" (scrim-last-output)))
+  ;;(message "%s" (scrim-last-output))
+  )
 
 (defun my-scrim-output-filter (s)
   "A function to run each time the scrim REPL buffer receives
