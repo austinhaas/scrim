@@ -13,24 +13,18 @@
 (add-hook 'scrim-mode-hook #'rainbow-delimiters-mode)
 ;; (add-hook 'scrim-mode-hook 'enable-paredit-mode) ;; Not working, because it binds C-d, which scrim-mode uses to quit.
 
-(defun my-scrim-echo-output ()
-  "Display the last output in the echo area."
-  ;;(message "%s" (scrim-last-output))
-  )
-
 (defun my-scrim-output-filter (s)
   "A function to run each time the scrim REPL buffer receives
 output from the Java process."
-
-  (when (not (string-equal s "user=> "))
-    ;; This function may be called multiple times; each call containing a portion
-    ;; of the complete output. For example, after receiving the user's input, this
-    ;; function may be called with a blank string, then again with the result, and
-    ;; then again with a prompt. The result value may also be split across
-    ;; multiple calls. In order to display the complete result, the value is read
-    ;; from the REPL buffer, instead of using the string argument to this
-    ;; function.
-    (my-scrim-echo-output)))
+  ;; This function may be called multiple times; each call containing a portion
+  ;; of the complete output. For example, after receiving the user's input, this
+  ;; function may be called with a blank string, then again with the result, and
+  ;; then again with a prompt. The result value may also be split across
+  ;; multiple calls. In order to display the complete result, the value is read
+  ;; from the REPL buffer, instead of using the string argument to this
+  ;; function.
+  (when (string-match scrim-prompt-regexp s) ;; Wait for the prompt.
+    (message "%s" (scrim-last-output))))
 
 (defun init-scrim-mode ()
   "My customizations."
