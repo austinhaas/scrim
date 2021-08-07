@@ -426,7 +426,7 @@ process."
   :keymap scrim-minor-mode-map
   (setq-local comint-input-sender 'scrim--send)
   (setq-local eldoc-documentation-function 'scrim--eldoc-function)
-  (add-hook 'completion-at-point-functions #'scrim--tags-completion-at-point nil t)
+  (add-hook 'completion-at-point-functions #'scrim--completion-at-point nil t)
   (add-hook 'project-find-functions #'scrim--project-find nil t)
   (add-hook 'xref-backend-functions #'scrim--xref-backend nil t))
 
@@ -456,13 +456,13 @@ process."
 
 PROGRAM should be one of the following:
 - a string, denoting an executable program to create via
-  ‘start-file-process’
+  ‘start-file-process’, such as 'clojure'
 - a cons pair of the form (HOST . SERVICE), denoting a TCP
   connection to be opened via ‘open-network-stream’"
   (interactive (list (read-string "program: " "clojure")))
   (if (get-buffer-process scrim--buffer-name)
       (user-error "Already connected.")
-    (message "Starting a Clojure REPL.")
+    (message "Starting a Clojure REPL...")
     (let ((default-directory (project-root (project-current t)))
           ;; Binding process-connection-type to nil causes the communication with
           ;; the subprocess to use a pipe rather than a pty. Without this,
@@ -472,7 +472,8 @@ PROGRAM should be one of the following:
       (make-comint-in-buffer "scrim" scrim--buffer-name program)
       (save-excursion
         (set-buffer scrim--buffer-name)
-        (scrim-mode)))))
+        (scrim-mode)))
+    (message "Starting a Clojure REPL...done")))
 
 (defcustom scrim-default-host "localhost"
   "The default host to connect to a REPL socket server."
@@ -492,8 +493,8 @@ PROGRAM should be one of the following:
   (scrim (cons host port)))
 
 
-;;;; Commands that build common Clojure expressions, usually based on symbols near point, and send
-;;;; them to the REPL.
+;;;; Commands that build common Clojure expressions, usually based on symbols
+;;;; near point, and send them to the REPL.
 
 ;;; core
 
@@ -668,14 +669,15 @@ namespaces, which are then used in the prompt."
                                \"ns\"       (str (ns-name (get m :ns)))}))]))})])))")
 
 (defun scrim-build-db ()
-  ""
+  "Send a clojure expression to the REPL to create the database
+based on the namespaces that are currently loaded."
   (interactive nil scrim-mode scrim-minor-mode)
   (if (get-buffer scrim--buffer-name)
-      (let ((progress-reporter (make-progress-reporter "Building database"))
+      (let ((pr (make-progress-reporter "Building database"))
             (db (scrim-redirect-result-from-process (scrim-proc)
                                                     scrim--build-db-clj)))
         (setq scrim--db (read db))
-        (progress-reporter-done progress-reporter))
+        (progress-reporter-done pr))
     (user-error "Not connected.")))
 
 (defun scrim-save-db ()
@@ -695,15 +697,18 @@ namespaces, which are then used in the prompt."
           (insert-file-contents f)
           (setq scrim--db (read (current-buffer)))
           (message "Loading scrim db...done"))
-      (message "Could not load scrim db."))))
+      (message "Could not find scrim db file."))))
 
 (defun scrim--get (alist key &optional default)
+  "Finds a value in an alist, where the keys are strings. Optional
+default value will be returned if key is not found."
   (if (listp alist)
       (alist-get key alist default nil #'string-equal)
     default))
 
 (defun scrim--get-in (alist keys &optional default)
-  "Finds a value in a nested alist, where all keys are strings."
+  "Finds a value in a nested alist, where all keys are strings. Optional
+default value will be returned if any keys are not found."
   (if keys
       (let* ((sentinel (gensym))
              (result (scrim--get alist (car keys) sentinel)))
@@ -712,11 +717,15 @@ namespaces, which are then used in the prompt."
           (scrim--get-in result (cdr keys) default)))
     alist))
 
-(defvar scrim--symbol-regexp "^\\(.*\\)/\\(.*\\)")
+(defvar scrim--symbol-regexp "^\\(.*\\)/\\(.*\\)"
+  "A very permissive regexp that can be used to split a string
+naming a Clojure symbol into namespace and symbol-name
+components. It shouldn't be used to validate symbols.")
 
 (defun scrim--parse-symbol (symbol)
-  "Parse symbol. Returns (symbol-ns . symbol-name). symbol-ns may
-be a fully-qualified namespace, nil, or an alias."
+  "Parse a Clojure symbol into namespace and symbol-name
+components. Returns (symbol-ns . symbol-name). symbol-ns may be a
+fully-qualified namespace, nil, or an alias."
   (if (string-match scrim--symbol-regexp symbol)
       (cons (match-string 1 symbol)
             (match-string 2 symbol))
@@ -780,18 +789,15 @@ Both args are strings."
 
 ;;;; xref
 
+(defun scrim--xref-backend () 'scrim)
+
 (defun scrim--archive-extract (archive file)
-  ;; Implementation based on archive-extract fn in arc-mode.
-  (let* (;; arc-mode says these next two are usually `eq', except when
-         ;; iname is the downcased ename. I don't know if that is
-         ;; relevant to this implementation.
-         (ename file)
-         (iname file)
-         (arcdir (file-name-directory archive))
+  ;; Implementation based on `archive-extract'.
+  (let* ((arcdir (file-name-directory archive))
          (arcname (file-name-nondirectory archive))
          (bufname (concat (file-name-nondirectory file) " (" arcname ")"))
          (read-only-p t)
-         (arcfilename (expand-file-name (concat arcname ":" iname)))
+         (arcfilename (expand-file-name (concat arcname ":" file)))
          (buffer (get-buffer bufname)))
     (if (and buffer
              (string= (buffer-file-name buffer) arcfilename))
@@ -805,7 +811,7 @@ Both args are strings."
         (setq buffer-file-truename (abbreviate-file-name buffer-file-name))
         (setq default-directory arcdir)
         (add-hook 'write-file-functions #'archive-write-file-member nil t)
-        (archive-set-buffer-as-visiting-file ename)
+        (archive-set-buffer-as-visiting-file file)
         (setq buffer-read-only t)
         (setq buffer-undo-list nil)
         (set-buffer-modified-p nil)
@@ -825,21 +831,25 @@ Line numbers start from 1 and columns from 0.")
 
 (defun scrim--xref-make-archive-location (archive file line column)
   "Create and return a new `scrim--xref-archive-location'."
-  (make-instance 'scrim--xref-archive-location :archive archive :file file :line line :column column))
+  (make-instance 'scrim--xref-archive-location
+                 :archive archive
+                 :file file
+                 :line line
+                 :column column))
 
 (cl-defmethod xref-location-marker ((l scrim--xref-archive-location))
+  ;; Implementation based on `xref-location-marker' implementation for
+  ;; xref-file-location.
   (with-slots (archive file line column) l
-    (with-current-buffer
-        (scrim--archive-extract archive file)
+    (with-current-buffer (scrim--archive-extract archive file)
       (save-restriction
         (widen)
         (save-excursion
           (goto-char (point-min))
           (ignore-errors
-            ;; xref location may be out of date; it may be past the
-            ;; end of the current file, or the file may have been
-            ;; deleted. Return a reasonable location; the user will
-            ;; figure it out.
+            ;; xref location may be out of date; it may be past the end of the
+            ;; current file, or the file may have been deleted. Return a
+            ;; reasonable location; the user will figure it out.
             (beginning-of-line line)
             (forward-char column))
           (point-marker))))))
@@ -863,27 +873,12 @@ before returning an xref."
            (xref-make (prin1-to-string symbol)
                       (scrim--xref-make-archive-location archive file line column))))))
 
-(defun scrim--find-definition (symbol)
-  "This function depends on scrim--db."
-  (let* ((ns (clojure-find-ns))
-         (alist (scrim--lookup-symbol ns symbol))
-         (file (scrim--get alist "file"))
-         (line (scrim--get alist "line"))
-         (column (scrim--get alist "column")))
-    (when (and file (not (string-equal file "NO_SOURCE_PATH")))
-      (when-let ((xref (scrim--get-xref symbol file line column)))
-        (list xref)))))
-
-(defun scrim--xref-backend () 'scrim)
-
 (cl-defmethod xref-backend-identifier-at-point ((_backend (eql scrim)))
   (scrim-symbol-at-point))
 
 (cl-defmethod xref-backend-identifier-completion-table ((_backend (eql scrim)))
   "This implementation depends on scrim--db."
   ;; This supports find-definition and find-references.
-
-  ;; TODO: Cache this table.
   (mapcan (lambda (ns)
             (mapcar (lambda (sym) (concat (car ns) "/" (car sym)))
                     (scrim--get ns "interns")))
@@ -894,7 +889,14 @@ before returning an xref."
 
 (cl-defmethod xref-backend-definitions ((_backend (eql scrim)) identifier)
   "This implementation depends on scrim--db."
-  (scrim--find-definition identifier))
+  (let* ((ns (clojure-find-ns))
+         (alist (scrim--lookup-symbol ns identifier))
+         (file (scrim--get alist "file"))
+         (line (scrim--get alist "line"))
+         (column (scrim--get alist "column")))
+    (when (and file (not (string-equal file "NO_SOURCE_PATH")))
+      (when-let ((xref (scrim--get-xref identifier file line column)))
+        (list xref)))))
 
 (cl-defmethod xref-backend-apropos ((_backend (eql scrim)) pattern)
   "This implementation depends on scrim--db."
@@ -965,7 +967,7 @@ before returning an xref."
                                           (list (and refers symbol-name)
                                                 (and alias (concat alias "/" symbol-name)))))
                      (regexp (when strings
-                               (regexp-opt strings 'words)))) ;; Why doesn't 'symbols work?
+                               (regexp-opt strings 'words)))) ;; TODO: Why doesn't 'symbols work?
                 (when (and file regexp)
                   (xref-matches-in-files regexp (list file)))))
             scrim--db)))
@@ -973,9 +975,7 @@ before returning an xref."
 
 ;;;; Completion
 
-;; TODO: Cache this?
-;; TODO: Check if there is a function to optimize completion tables.
-(defun scrim--tags-completion-at-point ()
+(defun scrim--completion-at-point ()
   "This function depends on scrim--db."
   (let* ((sym (scrim-symbol-at-point))
          (start (beginning-of-thing 'symbol))
