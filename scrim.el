@@ -764,27 +764,21 @@ Both args are strings."
 
 ;;;; eldoc
 
-(defvar-local scrim--eldoc-cache nil)
-
 (defun scrim--eldoc-function ()
   "This function depends on scrim--db."
   (when (not (nth 4 (syntax-ppss)))    ; inside a comment?
     (when-let ((sym (or (scrim-current-function-symbol)
                         (scrim-symbol-at-point))))
       (when (string-match "^[a-zA-Z]" sym)
-        (cond
-         ((string= sym (car scrim--eldoc-cache)) (cdr scrim--eldoc-cache))
-         (t (let* ((ns (clojure-find-ns))
-                   (alist (scrim--lookup-symbol ns sym))
-                   (s (when alist
-                        (if-let ((arglist (scrim--get alist "arglists")))
-                            (format "%s: %s"
-                                    (propertize sym 'face 'font-lock-function-name-face)
-                                    arglist)
-                          (format "%s"
-                                  (propertize sym 'face 'font-lock-function-name-face))))))
-              (setq scrim--eldoc-cache (cons sym s))
-              s)))))))
+        (let* ((ns (clojure-find-ns))
+               (alist (scrim--lookup-symbol ns sym)))
+          (when alist
+            (if-let ((arglist (scrim--get alist "arglists")))
+                (format "%s: %s"
+                        (propertize sym 'face 'font-lock-function-name-face)
+                        arglist)
+              (format "%s"
+                      (propertize sym 'face 'font-lock-function-name-face)))))))))
 
 
 ;;;; xref
