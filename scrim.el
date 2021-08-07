@@ -641,7 +641,7 @@ namespaces, which are then used in the prompt."
              {\"aliases\"
               (alist
                (for [[k v] (ns-aliases ns)]
-                 [(name k) (str (ns-name v))]))
+                 [(name k) (name (ns-name v))]))
 
               \"refers\"
               (alist
@@ -649,7 +649,7 @@ namespaces, which are then used in the prompt."
                      :let  [ns-name (ns-name (:ns (meta v)))]
                      ;; To save space.
                      :when (not= 'clojure.core ns-name)]
-                 [(name k) (str ns-name)]))
+                 [(name k) (name ns-name)]))
 
               \"interns\"
               (alist
@@ -665,8 +665,8 @@ namespaces, which are then used in the prompt."
                                                     x))))
                                \"column\"   (get m :column)
                                \"line\"     (get m :line)
-                               \"name\"     (str (get m :name))
-                               \"ns\"       (str (ns-name (get m :ns)))}))]))})])))")
+                               \"name\"     (name (get m :name))
+                               \"ns\"       (name (ns-name (get m :ns)))}))]))})])))")
 
 (defun scrim-build-db ()
   "Send a clojure expression to the REPL to create the database
