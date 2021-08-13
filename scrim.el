@@ -791,7 +791,10 @@ Both args are strings."
          (arcname (file-name-nondirectory archive))
          (bufname (concat (file-name-nondirectory file) " (" arcname ")"))
          (read-only-p t)
-         (arcfilename (expand-file-name (concat arcname ":" file)))
+         ;; `archive-extract' uses arcname here instead of archive, because it
+         ;; assumes `default-directory' is the archive, and `expand-file-name'
+         ;; will use that to expand the relative path.
+         (arcfilename (expand-file-name (concat archive ":" file)))
          (buffer (get-buffer bufname)))
     (if (and buffer
              (string= (buffer-file-name buffer) arcfilename))
