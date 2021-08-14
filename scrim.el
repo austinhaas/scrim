@@ -455,10 +455,17 @@ process."
   "Launch a Scrim REPL buffer, running PROGRAM.
 
 PROGRAM should be one of the following:
-- a string, denoting an executable program to create via
-  ‘start-file-process’, such as 'clojure'
+- a string, denoting an executable program that launches a
+  Clojure REPL
 - a cons pair of the form (HOST . SERVICE), denoting a TCP
-  connection to be opened via ‘open-network-stream’"
+  connection to a Clojure socket server
+
+Note that PROGRAM must be something that launches a Clojure
+native REPL, like \"clojure\" or \"clj\" from the Clojure CLI
+tools. \"lein repl\" will not work, for instance, because it uses
+nrepl, which this library does not support. A workaround is to
+launch a process with a socket server, outside of Emacs, and
+connect to it via `scrim-connect'."
   (interactive (list (read-string "program: " "clojure")))
   (if (get-buffer-process scrim--buffer-name)
       (user-error "Already connected.")
@@ -487,7 +494,25 @@ PROGRAM should be one of the following:
 
 ;;;###autoload
 (defun scrim-connect (host port)
-  "Same as (scrim '(host . port))."
+  "Connect to a Clojure REPL socket server.
+
+Same as (scrim '(host . port)).
+
+For example, a Clojure process with a socket server can be
+created (outside of Emacs) with one of the following commands:
+
+Just Clojure:
+java -Dclojure.server.repl='{:port 5555 :accept clojure.core.server/repl}' -jar path-to-clojure-jar
+
+Leiningen:
+JVM_OPTS='-Dclojure.server.myrepl={:port,5555,:accept,clojure.core.server/repl}' lein repl
+
+CLI tools:
+clj -J-Dclojure.server.myrepl='{:port 5555,:accept,clojure.core.server/repl}'
+
+Then connect (in Emacs) with:
+
+m-x scrim-connect RET localhost RET 5555 RET"
   (interactive (list (read-string "host: " scrim-default-host)
                      (read-number "port: " scrim-default-port)))
   (scrim (cons host port)))
