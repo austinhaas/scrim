@@ -784,20 +784,19 @@ Both args are strings."
   (when (not (nth 4 (syntax-ppss)))    ; inside a comment?
     (when-let ((sym (or (scrim-current-function-symbol)
                         (scrim-symbol-at-point))))
-      (when (string-match "^[a-zA-Z]" sym)
-        (let* ((ns (clojure-find-ns))
-               (alist (scrim--lookup-symbol ns sym)))
-          (when alist
-            (if-let ((arglist (scrim--get alist "arglists")))
+      (let* ((ns (clojure-find-ns))
+             (alist (scrim--lookup-symbol ns sym)))
+        (when alist
+          (if-let ((arglist (scrim--get alist "arglists")))
+              (format "%s: %s"
+                      (propertize sym 'face 'font-lock-function-name-face)
+                      arglist)
+            (if-let ((forms (scrim--get alist "forms")))
                 (format "%s: %s"
                         (propertize sym 'face 'font-lock-function-name-face)
-                        arglist)
-              (if-let ((forms (scrim--get alist "forms")))
-                  (format "%s: %s"
-                          (propertize sym 'face 'font-lock-function-name-face)
-                          forms)
-                (format "%s"
-                        (propertize sym 'face 'font-lock-function-name-face))))))))))
+                        forms)
+              (format "%s"
+                      (propertize sym 'face 'font-lock-function-name-face)))))))))
 
 
 ;;;; xref
