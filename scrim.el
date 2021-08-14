@@ -634,39 +634,52 @@ namespaces, which are then used in the prompt."
 
 (defvar scrim--build-db-clj
   ;; This produces a clojure value that can be read by emacs lisp.
-  "(letfn [(alist [xs] (for [[k v] xs] (list k '. v)))]
-  (alist (for [ns (all-ns)]
-           [(str (ns-name ns))
-            (alist
-             {\"aliases\"
-              (alist
-               (for [[k v] (ns-aliases ns)]
-                 [(name k) (name (ns-name v))]))
+  "(letfn [(alist [xs] (for [[k v] xs] (list k '. v)))
+        #_(alist [xs] (into {} xs))]
+  (alist
+   (concat
+    [[\"#special-forms#\"
+      (alist
+       (for [[k v] (deref #'clojure.repl/special-doc-map)]
+         (if-let [forms (get v :forms)]
+           (if (every? (fn [form] (= k (first form))) forms)
+             (let [arglists (map (comp vec rest) forms)]
+               [(str k) (alist {\"forms\"    (str forms)
+                                \"arglists\" (pr-str arglists)})])
+             [(str k) (alist {\"forms\" (str forms)})])
+           [(str k) nil])))]]
+    (for [ns (all-ns)]
+      [(str (ns-name ns))
+       (alist
+        {\"aliases\"
+         (alist
+          (for [[k v] (ns-aliases ns)]
+            [(name k) (name (ns-name v))]))
 
-              \"refers\"
-              (alist
-               (for [[k v] (ns-refers ns)
-                     :let  [ns-name (ns-name (:ns (meta v)))]
-                     ;; To save space.
-                     :when (not= 'clojure.core ns-name)]
-                 [(name k) (name ns-name)]))
+         \"refers\"
+         (alist
+          (for [[k v] (ns-refers ns)
+                :let  [ns-name (ns-name (:ns (meta v)))]
+                ;; To save space.
+                :when (not= 'clojure.core ns-name)]
+            [(name k) (name ns-name)]))
 
-              \"interns\"
-              (alist
-               (for [[k v] (ns-interns ns)]
-                 [(name k) (alist
-                            (let [m (meta v)]
-                              {\"arglists\" (when-let [x (get m :arglists)] (str x))
-                               \"file\"     (when-let [x (get m :file)]
-                                            (case x
-                                              \"NO_SOURCE_PATH\" x
-                                              (str (.getResource
-                                                    (clojure.lang.RT/baseLoader)
-                                                    x))))
-                               \"column\"   (get m :column)
-                               \"line\"     (get m :line)
-                               \"name\"     (name (get m :name))
-                               \"ns\"       (name (ns-name (get m :ns)))}))]))})])))")
+         \"interns\"
+         (alist
+          (for [[k v] (ns-interns ns)]
+            [(name k) (alist
+                       (let [m (meta v)]
+                         {\"arglists\" (some-> (get m :arglists) str )
+                          \"file\"     (when-let [x (get m :file)]
+                                       (case x
+                                         \"NO_SOURCE_PATH\" x
+                                         (str (.getResource
+                                               (clojure.lang.RT/baseLoader)
+                                               x))))
+                          \"column\"   (get m :column)
+                          \"line\"     (get m :line)
+                          \"name\"     (name (get m :name))
+                          \"ns\"       (name (ns-name (get m :ns)))}))]))})]))))")
 
 (defun scrim-build-db ()
   "Send a clojure expression to the REPL to create the database
@@ -752,7 +765,9 @@ Both args are strings."
          (scrim--get-in scrim--db (list current-ns "interns" symbol-name))
          ;; Symbol is in clojure.core. scrim--build-db-clj elides symbols in
          ;; clojure.core to save space, so we need to check for it explicitly.
-         (scrim--get-in scrim--db (list "clojure.core" "interns" symbol-name)))
+         (scrim--get-in scrim--db (list "clojure.core" "interns" symbol-name))
+         ;; Symbol is a special-form.
+         (scrim--get-in scrim--db (list "#special-forms#" symbol-name)))
       ;; Symbol has a namespace component.
       (or
        ;; Alias
@@ -777,8 +792,12 @@ Both args are strings."
                 (format "%s: %s"
                         (propertize sym 'face 'font-lock-function-name-face)
                         arglist)
-              (format "%s"
-                      (propertize sym 'face 'font-lock-function-name-face)))))))))
+              (if-let ((forms (scrim--get alist "forms")))
+                  (format "%s: %s"
+                          (propertize sym 'face 'font-lock-function-name-face)
+                          forms)
+                (format "%s"
+                        (propertize sym 'face 'font-lock-function-name-face))))))))))
 
 
 ;;;; xref
@@ -984,6 +1003,7 @@ before returning an xref."
          (refers (scrim--get ns-alist "refers"))
          (aliases (scrim--get ns-alist "aliases"))
          (collection (nconc
+                      (mapcar #'car (scrim--get-in scrim--db (list "#special-forms#")))
                       (mapcar #'car (scrim--get-in scrim--db (list "clojure.core" "interns")))
                       (mapcar #'car interns)
                       (mapcar #'car refers)
