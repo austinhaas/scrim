@@ -49,27 +49,9 @@
 (defconst scrim-version "0.0.6-SNAPSHOT"
   "The current version of `Scrim'.")
 
-;;;; Project support
-
-;; Note that this is not used by default. It must be added to the
-;; `project-find-functions' hook. See scrim-init-extra.el for an example.
-
-;; This isn't used by default, because there isn't a one-size-fits-all solution,
-;; and this library shouldn't make any assumptions. The main issue is that the
-;; default project-find implementation searches for a vc dir (using
-;; `project-try-vc') and it honors ignore files, like .gitignore, which can
-;; significantly focus the results on files we actually care about. In most
-;; cases, that would be preferred to this implementation. But there are valid
-;; cases, including the demo projects in this repo, where the project roots are
-;; not the same as the vc dir, and in that case, this implementation may be more
-;; accurate.
-
-(defun scrim-clojure-project-find (dir)
-  (when-let ((project-root (clojure-project-dir dir)))
-    (cons 'clojure project-root)))
-
-(cl-defmethod project-root ((project (head clojure)))
-  (cdr project))
+(defun scrim-project-root ()
+  (or (clojure-project-dir default-directory)
+      (project-root (project-current t))))
 
 ;;;; Functions to extract expressions from Clojure buffers
 
@@ -480,7 +462,7 @@ connect to it via `scrim-connect'."
   (if (get-buffer-process scrim--buffer-name)
       (user-error "Already connected.")
     (message "Starting a Clojure REPL...")
-    (let ((default-directory (project-root (project-current t)))
+    (let ((default-directory (scrim-project-root))
           ;; Binding process-connection-type to nil causes the communication with
           ;; the subprocess to use a pipe rather than a pty. Without this,
           ;; expressions longer than 1024 bytes cannot be sent to the subprocess.
@@ -664,8 +646,7 @@ namespaces, which are then used in the prompt."
 (defvar scrim--db-filename ".scrim-db")
 
 (defun scrim--db-file-path ()
-  (concat (project-root (project-current t))
-          scrim--db-filename))
+  (concat (scrim-project-root) scrim--db-filename))
 
 (defvar scrim--build-db-clj
   ;; This produces a clojure value that can be read by emacs lisp.
