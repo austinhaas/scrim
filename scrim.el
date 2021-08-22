@@ -51,16 +51,24 @@
 
 ;;;; Project support
 
-(defvar scrim--project-root-file-names
-  '("deps.edn" "project.clj" "build.boot"))
+;; Note that this is not used by default. It must be added to the
+;; `project-find-functions' hook. See scrim-init-extra.el for an example.
 
-(defun scrim--project-find (dir)
-  (when-let ((project-root (seq-some (lambda (name)
-                                       (locate-dominating-file dir name))
-                                     scrim--project-root-file-names)))
-    (cons 'scrim project-root)))
+;; This isn't used by default, because there isn't a one-size-fits-all solution,
+;; and this library shouldn't make any assumptions. The main issue is that the
+;; default project-find implementation searches for a vc dir (using
+;; `project-try-vc') and it honors ignore files, like .gitignore, which can
+;; significantly focus the results on files we actually care about. In most
+;; cases, that would be preferred to this implementation. But there are valid
+;; cases, including the demo projects in this repo, where the project roots are
+;; not the same as the vc dir, and in that case, this implementation may be more
+;; accurate.
 
-(cl-defmethod project-root ((project (head scrim)))
+(defun scrim-clojure-project-find (dir)
+  (when-let ((project-root (clojure-project-dir dir)))
+    (cons 'clojure project-root)))
+
+(cl-defmethod project-root ((project (head clojure)))
   (cdr project))
 
 ;;;; Functions to extract expressions from Clojure buffers
@@ -430,7 +438,6 @@ process."
   (setq-local comint-input-sender 'scrim--send)
   (setq-local eldoc-documentation-function 'scrim--eldoc-function)
   (add-hook 'completion-at-point-functions #'scrim--completion-at-point nil t)
-  (add-hook 'project-find-functions #'scrim--project-find nil t)
   (add-hook 'xref-backend-functions #'scrim--xref-backend nil t))
 
 (define-derived-mode scrim-mode comint-mode "scrim"

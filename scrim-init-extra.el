@@ -27,7 +27,37 @@ output from the Java process."
     (message "%s" (scrim-last-output))))
 
 (defun init-scrim-mode ()
-  "My customizations."
+  "My major mode customizations."
   (add-hook 'comint-output-filter-functions #'my-scrim-output-filter nil t))
 
 (add-hook 'scrim-mode-hook #'init-scrim-mode)
+
+(defun my-scrim-project-find (dir)
+  "Try to determine the project root by searching for both a vc dir
+and a clojure project build file. If the results are the same,
+then return the vc implementation, since it filters files better
+by honoring any vc ignore files. Otherwise, return the version
+based on clojure project build files, since that is a more
+accurate indicator of the project root."
+  (let ((vc (project-try-vc dir))
+        (clj (scrim-clojure-project-find dir)))
+    (if (and vc clj)
+        (if (string-equal (project-root vc)
+                          (project-root clj))
+            vc
+          clj)
+      (or vc clj))))
+
+(defun init-scrim-minor-mode ()
+  "My minor mode customizations."
+  (add-hook 'project-find-functions #'my-scrim-project-find nil t)
+  ;; Alternatively, you could add the following expression instead, which would
+  ;; try to find the clojure build file first (since it is added to the local
+  ;; hook), and then fallback to searching for a vc dir (which is on the global
+  ;; hook). If you want to change that priority, then you would need to add
+  ;; `project-try-vc' to the local hook here, too, so that you can prioritize
+  ;; them.
+  ;; (add-hook 'project-find-functions #'scrim-clojure-project-find nil t)
+  )
+
+(add-hook 'scrim-minor-mode-hook #'init-scrim-minor-mode)
