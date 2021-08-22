@@ -31,14 +31,19 @@
 
 ;;; Code:
 
+;; Dependencies that are included with Emacs
+
 (require 'arc-mode)
 (require 'cl-lib)
-(require 'clojure-mode)
 (require 'comint)
 (require 'project)
 (require 'subr-x)
 (require 'thingatpt)
 (require 'xref)
+
+;; Additional dependencies
+
+(require 'clojure-mode)
 
 
 (defconst scrim-version "0.0.6-SNAPSHOT"
