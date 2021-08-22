@@ -1,6 +1,4 @@
-;; -*- lexical-binding: t; -*-
-
-;;; scrim.el --- Simple Clojure REPL Interaction Mode
+;;; scrim.el --- Simple Clojure REPL Interaction Mode       -*- lexical-binding: t; -*-
 
 ;; Copyright © 2021 Austin Haas
 ;;
