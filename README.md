@@ -46,8 +46,7 @@ git clone git@github.com:austinhaas/scrim.git
 ### Update your .emacs
 
 I've included a couple init files that you can use as reference. This is what I
-use to initialize scrim. You will probably only want to take what you want and
-modify as necessary.
+use to initialize scrim. Take what you want and modify as necessary.
 
 * [A minimal configuration](scrim-init-minimal.el)
 * [Extra](scrim-init-extra.el) (experimental)
