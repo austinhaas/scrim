@@ -513,22 +513,76 @@ m-x scrim-connect RET localhost RET 5555 RET"
 ;;;; Commands that build common Clojure expressions, usually based on symbols
 ;;;; near point, and send them to the REPL.
 
+(defcustom scrim-always-prompt-p nil
+  "If non-nil, interactive commands that send expressions to the
+REPL will always prompt the user before sending.")
+
+(defmacro scrim--cmd (name docstring default-fn prompt-fn clj-format-string error-msg)
+  "Macro for defining simple commands that compose a Clojure
+expression, usually based on some symbol near point, and send it
+to the REPL process.
+
+NAME is a symbol that will be the name of the new command.
+
+DOCSTRING is a docstring for the command.
+
+DEFAULT-FN and PROMPT-FN are used to produce an input
+value. DEFAULT-FN is either nil or a function that takes no
+arguments and returns an input value. PROMPT-FN is a function
+that takes whatever DEFAULT-FN returns, or nil if DEFAULT-FN is
+nil, and returns an input value.
+
+PROMPT-FN is only called if DEFAULT-FN is nil, if DEFAULT-FN
+returns nil or a blank string, if a prefix argument was supplied,
+or if scrim-always-prompt-p is non-nil. This allows users to
+control the conditions under which they will get prompted. For
+example, a user (like me) might want the command to DWIM and
+avoid a prompt, whereas someone else might want to confirm every
+expression before it is sent to the REPL.
+
+CLJ-FORMAT-STRING is a format string for a Clojure expression. It
+should take one argument: the input value.
+
+ERROR-MSG will be displayed if the input value is nil or a blank
+string."
+  `(defun ,name (arg)
+     ,docstring
+     (interactive (let ((arg (when ,default-fn (funcall ,default-fn))))
+                    (if (or current-prefix-arg
+                            scrim-always-prompt-p
+                            (null arg)
+                            (and (stringp arg)
+                                 (string-blank-p arg)))
+                        (list (funcall ,prompt-fn arg))
+                      (list arg)))
+                  scrim-mode scrim-minor-mode)
+     (if (or (null arg)
+             (string-blank-p arg))
+         (user-error ,error-msg)
+       (scrim--send (scrim-proc) (format ,clj-format-string arg)))))
+
 ;;; core
 
-(defun scrim-send-require (ns)
-  (interactive (list (read-string "require ns: " (clojure-find-ns)))
-               scrim-mode scrim-minor-mode)
-  (scrim--send (scrim-proc) (format "(require '%s)" ns)))
+(scrim--cmd scrim-send-require
+            "Sends (require ns) to the REPL."
+            'clojure-find-ns
+            (lambda (default-ns) (read-string "require ns: " default-ns))
+            "(require '%s)"
+            "Namespace not found")
 
-(defun scrim-send-in-ns (ns)
-  (interactive (list (read-string "in ns: " (clojure-find-ns)))
-               scrim-mode scrim-minor-mode)
-  (scrim--send (scrim-proc) (format "(in-ns '%s)" ns)))
+(scrim--cmd scrim-send-in-ns
+            "Sends (in-ns ns) to the REPL."
+            'clojure-find-ns
+            (lambda (default-ns) (read-string "in ns: " default-ns))
+            "(in-ns '%s)"
+            "Namespace not found")
 
-(defun scrim-send-arglists (fn)
-  (interactive (list (read-string "arglists for fn: " (scrim-current-function-symbol)))
-               scrim-mode scrim-minor-mode)
-  (scrim--send (scrim-proc) (format "(:arglists (meta (resolve '%s)))" fn)))
+(scrim--cmd scrim-send-arglists
+            "Sends (:arglists (meta (resolve ns))) to the REPL."
+            'scrim-current-function-symbol
+            (lambda (default-symbol) (read-string "arglists for fn: " default-symbol))
+            "(:arglists (meta (resolve '%s)))"
+            "No function near point")
 
 (defun scrim-send-macroexpand (&optional macro-1)
   (interactive "P" scrim-mode scrim-minor-mode)
@@ -541,10 +595,10 @@ m-x scrim-connect RET localhost RET 5555 RET"
       (user-error "No sexp near point"))))
 
 (defun scrim-send-load-file (file)
-  "Sends (clojure.core/load-file file) to the REPL."
+  "Sends (load-file file) to the REPL."
   (interactive (list (expand-file-name
-                      (read-file-name "file: " nil buffer-file-name t (file-name-nondirectory buffer-file-name)))
-                     scrim-mode scrim-minor-mode))
+                      (read-file-name "file: " nil buffer-file-name t (file-name-nondirectory buffer-file-name))))
+               scrim-mode scrim-minor-mode)
   (comint-check-source file)
   (if file
       (scrim--send (scrim-proc) (format "(load-file \"%s\")" file))
@@ -552,78 +606,64 @@ m-x scrim-connect RET localhost RET 5555 RET"
 
 ;;; repl
 
-(defun scrim-send-doc (symbol)
-  (interactive (list (read-string "doc for symbol: " (scrim-symbol-at-point)))
-               scrim-mode scrim-minor-mode)
-  (scrim--send (scrim-proc) (format "(clojure.repl/doc %s)" symbol)))
+(scrim--cmd scrim-send-doc
+            "Sends (clojure.repl/doc symbol) to the REPL."
+            'scrim-symbol-at-point
+            (lambda (default-symbol) (read-string "doc for symbol: " default-symbol))
+            "(clojure.repl/doc %s)"
+            "No symbol near point")
 
-(defun scrim-send-source (n)
-  "Sends (clojure.repl/source n) to the REPL.
+(defun scrim--prompt-for-namespace (default-ns)
+  "Prompt the user for a namespace and returns the
+namespace.
 
-When called interactively, if the point is at a symbol, then it
-will use that symbol. If point is not at a symbol, or if a prefix
-is used, then it will prompt for a namespace and a symbol.
+Uses process redirection to silently query the REPL for
+namespaces, which are then used in the prompt."
+  (let ((nss (read (scrim-redirect-result-from-process (scrim-proc) "(->> (all-ns) (map ns-name) (map name))"))))
+    (completing-read (if default-ns
+                         (format "ns (default %s): " default-ns)
+                       "ns: ")
+                     nss nil t nil nil default-ns)))
+
+(defun scrim--prompt-for-namespaced-symbol (default-ns default-symbol)
+  "Prompt the user for a namespace and a symbol and returns the
+namespaced symbol.
 
 Uses process redirection to silently query the REPL for
 namespaces and public symbols, which are then used in the
 prompt."
-  (interactive (let ((sym (scrim-symbol-at-point)))
-                 (list
-                  (if (and (null current-prefix-arg)
-                           sym)
-                      sym
-                      (let* ((ns (clojure-find-ns))
-                             (nss (read (scrim-redirect-result-from-process (scrim-proc) "(->> (all-ns) (map ns-name) (map name))")))
-                             (ns (completing-read (if ns
-                                                      (format "ns (default %s): " ns)
-                                                    "ns: ")
-                                                  nss
-                                                  nil
-                                                  t
-                                                  nil
-                                                  nil
-                                                  ns))
-                             (syms (read (scrim-redirect-result-from-process (scrim-proc) (format "(map first (ns-publics '%s))" ns))))
-                             (sym (completing-read "sym: "
-                                                   syms
-                                                   nil
-                                                   t)))
-                        (string-join (list ns sym) "/")))))
-               scrim-mode scrim-minor-mode)
-  (if n
-      (scrim--send (scrim-proc) (format "(clojure.repl/source %s)" n))
-    (user-error "No name found")))
+  (let* ((ns (scrim--prompt-for-namespace default-ns))
+         (syms (read (scrim-redirect-result-from-process (scrim-proc) (format "(map first (ns-publics '%s))" ns))))
+         (sym (completing-read (if default-symbol
+                                   (format "sym (default %s): " default-symbol)
+                                 "sym: ")
+                               syms nil t nil nil default-symbol)))
+    (substring-no-properties
+     (string-join (list ns sym) "/"))))
 
-(defun scrim-send-dir (nsname)
-  "Sends (clojure.repl/dir nsname) to the REPL.
+(scrim--cmd scrim-send-source
+            "Sends (clojure.repl/source n) to the REPL."
+            'scrim-symbol-at-point
+            (lambda (default-symbol)
+              (if default-symbol
+                  (scrim--prompt-for-namespaced-symbol (clojure-find-ns) default-symbol)
+                (scrim--prompt-for-namespaced-symbol nil nil)))
+            "(clojure.repl/source %s)"
+            "No symbol near point")
 
-Uses process redirection to silently query the REPL for
-namespaces, which are then used in the prompt."
-  (interactive (list
-                (let ((ns (clojure-find-ns))
-                      (nss (read (scrim-redirect-result-from-process (scrim-proc) "(->> (all-ns) (map ns-name) (map name))"))))
-                  (completing-read (if ns
-                                       (format "ns (default %s): " ns)
-                                     "ns: ")
-                                   nss
-                                   nil
-                                   t
-                                   nil
-                                   nil
-                                   ns)))
-               scrim-mode scrim-minor-mode)
-  (if nsname
-      (scrim--send (scrim-proc) (format "(clojure.repl/dir %s)" nsname))
-    (user-error "No namespace found")))
+(scrim--cmd scrim-send-dir
+            "Sends (clojure.repl/dir nsname) to the REPL."
+            'clojure-find-ns
+            (lambda (default-ns) (scrim--prompt-for-namespace default-ns))
+            "(clojure.repl/dir %s)"
+            "No namespace found")
 
-(defun scrim-send-apropos (str-or-pattern)
-  (interactive (list (read-string "apropos for str-or-pattern: "))
-               scrim-mode scrim-minor-mode)
-  (if (equal "" str-or-pattern)
-      (user-error "You didn't specify a string or pattern")
-    (scrim--send (scrim-proc)
-                 (format "(doseq [v (sort (clojure.repl/apropos %s))] (println v))"
-                         str-or-pattern))))
+(scrim--cmd scrim-send-apropos
+            "Sends (doseq [v (sort (clojure.repl/apropos %s))] (println v)) to the REPL."
+            nil
+            (lambda (x) (read-string "apropos for str-or-pattern: "))
+            "(doseq [v (sort (clojure.repl/apropos %s))] (println v))"
+            "You didn't specify a string or pattern")
 
 (defun scrim-send-pst ()
   (interactive nil scrim-mode scrim-minor-mode)
