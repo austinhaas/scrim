@@ -291,8 +291,7 @@ property of an overlay."
   "Send COMMAND to PROCESS. Return the output. Does not show input or output in Scrim REPL buffer.
 
 Adapted from comint-redirect-results-list-from-process."
-  (let ((output-buffer " *Scrim Redirect Work Buffer*")
-	      results)
+  (let ((output-buffer " *Scrim Redirect Work Buffer*"))
     (with-current-buffer (get-buffer-create output-buffer)
       (erase-buffer)
       (comint-redirect-send-command-to-process command output-buffer process nil t)
