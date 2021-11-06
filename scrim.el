@@ -325,9 +325,9 @@ is scoped to the region."
         (scrim-sexps-in-region start end)))
 
 (defun scrim-eval-buffer ()
-  "Send each expression in the accessible portion of current
-buffer to the REPL process, one at a time. You can use C-x n n to
-limit the part of buffer to be evaluated."
+  "Send each expression in the accessible portion of current buffer
+to the REPL process, one at a time. `narrow-to-region` can be
+used to limit the part of buffer to be evaluated."
   (interactive nil scrim-minor-mode)
   (scrim-eval-region (point-min) (point-max)))
 
