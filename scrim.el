@@ -316,6 +316,10 @@ is scoped to the region."
   (mapc (lambda (sexp)
           ;; Give the process a chance to reply before the next input,
           ;; so that input and output are interleaved in the buffer.
+
+          ;; TODO: Consider creating a blocking send or some other way of
+          ;; confirming a response before continuing. Maybe scrim-last-output
+          ;; could be used.
           (sleep-for 0.05)
           (scrim--send (scrim-proc) sexp))
         (scrim-sexps-in-region start end)))
