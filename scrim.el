@@ -357,31 +357,33 @@ used to limit the part of buffer to be evaluated."
 
 (defvar scrim-repl-map
   (let ((map (define-prefix-command 'scrim-repl-map)))
-    (define-key map (kbd "C-d")   #'scrim-send-doc)
-    (define-key map (kbd "C-s")   #'scrim-send-source)
-    (define-key map (kbd "C-S-a") #'scrim-send-apropos)
-    (define-key map (kbd "C-S-d") #'scrim-send-dir)
-    (define-key map (kbd "C-p")   #'scrim-send-pst)
+    (define-key map (kbd "d")   #'scrim-send-doc)
+    (define-key map (kbd "f d") #'scrim-send-find-doc)
+    (define-key map (kbd "s")   #'scrim-send-source)
+    (define-key map (kbd "C-a") #'scrim-send-apropos)
+    (define-key map (kbd "C-d") #'scrim-send-dir)
+    (define-key map (kbd "p")   #'scrim-send-pst)
     map)
   "Bindings for functions in clojure.repl.")
 
 (defvar scrim-pprint-map
   (let ((map (define-prefix-command 'scrim-pprint-map)))
-    (define-key map (kbd "C-p") #'scrim-send-pp)
+    (define-key map (kbd "p") #'scrim-send-pp)
     map)
   "Bindings for functions in clojure.pprint.")
+
+(defvar scrim-javadoc-map
+  (let ((map (define-prefix-command 'scrim-javadoc-map)))
+    (define-key map (kbd "j") #'scrim-send-javadoc)
+    map)
+  "Bindings for functions in clojure.java.javadoc.")
 
 (defvar scrim-mode-map
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map comint-mode-map)
-    (define-key map (kbd "C-c C-q")   #'scrim-quit)
-    (define-key map (kbd "C-c C-S-o") #'scrim-clear-repl-buffer)
-
-    (define-key map (kbd "C-c C-e")   #'scrim-eval-previous-sexp)
-    (define-key map (kbd "C-c C-c")   #'scrim-eval-around-or-previous-sexp)
-
-    (define-key map (kbd "C-c C-r")   'scrim-repl-map)
-    (define-key map (kbd "C-c C-p")   'scrim-pprint-map)
+    (define-key map (kbd "C-c C-q") #'scrim-quit)
+    (define-key map (kbd "C-c o")   #'scrim-clear-repl-buffer)
+    (define-key map (kbd "C-c C-s e") #'scrim-repl-buffer-end)
     map))
 
 (defvar scrim-minor-mode-map
@@ -390,22 +392,25 @@ used to limit the part of buffer to be evaluated."
     (define-key map (kbd "C-c C-q")   #'scrim-quit)
 
     (define-key map (kbd "C-c C-z")   #'scrim-show-or-hide-repl-buffer)
-    (define-key map (kbd "C-c C-S-o") #'scrim-clear-repl-buffer)
-    (define-key map (kbd "C-c C-S-e") #'scrim-repl-buffer-end)
+    (define-key map (kbd "C-c o")     #'scrim-clear-repl-buffer)
+    (define-key map (kbd "C-c C-s e") #'scrim-repl-buffer-end)
 
-    (define-key map (kbd "C-c C-e")   #'scrim-eval-previous-sexp)
+    (define-key map (kbd "C-c e")     #'scrim-eval-previous-sexp)
     (define-key map (kbd "C-c C-c")   #'scrim-eval-around-or-previous-sexp)
-    (define-key map (kbd "C-c C-b")   #'scrim-eval-buffer)
-    (define-key map (kbd "C-c C-S-r") #'scrim-eval-region)
+    (define-key map (kbd "C-c C-e b") #'scrim-eval-buffer)
+    (define-key map (kbd "C-c C-e r") #'scrim-eval-region)
 
-    (define-key map (kbd "C-c C-l")   #'scrim-send-load-file)
+    (define-key map (kbd "C-c l")     #'scrim-send-load-file)
     (define-key map (kbd "C-c r")     #'scrim-send-require)
-    (define-key map (kbd "C-c C-n")   #'scrim-send-in-ns)
-    (define-key map (kbd "C-c C-a")   #'scrim-send-arglists)
-    (define-key map (kbd "C-c C-m")   #'scrim-send-macroexpand)
+    (define-key map (kbd "C-c n")     #'scrim-send-in-ns)
+    (define-key map (kbd "C-c a")     #'scrim-send-arglists)
+
+    (define-key map (kbd "C-c m m")   #'scrim-send-macroexpand)
+    (define-key map (kbd "C-c m 1")   #'scrim-send-macroexpand-1)
 
     (define-key map (kbd "C-c C-r")   'scrim-repl-map)
     (define-key map (kbd "C-c C-p")   'scrim-pprint-map)
+    (define-key map (kbd "C-c C-j")   'scrim-javadoc-map)
     map))
 
 
@@ -617,73 +622,67 @@ string."
 (scrim--cmd scrim-send-in-ns
             "Sends (in-ns ns) to the REPL."
             'clojure-find-ns
-            (lambda (default-ns) (read-string "in ns: " default-ns))
+            (lambda (default-ns) (scrim--prompt-for-namespace default-ns))
             "(in-ns '%s)"
             "Namespace not found")
 
 (scrim--cmd scrim-send-arglists
             "Sends (:arglists (meta (resolve ns))) to the REPL."
             'scrim-current-function-symbol
-            (lambda (default-symbol) (read-string "arglists for fn: " default-symbol))
+            (lambda (default-symbol) (read-string "function: " default-symbol))
             "(:arglists (meta (resolve '%s)))"
             "No function near point")
 
-(defun scrim-send-macroexpand (&optional macro-1)
-  (interactive "P" scrim-mode scrim-minor-mode)
-  (let ((expr (scrim-previous-sexp)))
-    (if expr
-        (scrim--send (scrim-proc) (format (if macro-1
-                                              "(macroexpand-1 '%s)"
-                                            "(macroexpand '%s)")
-                                          expr))
-      (user-error "No sexp near point"))))
+(scrim--cmd scrim-send-macroexpand
+            "Sends (macroexpand form) to the REPL."
+            'scrim-previous-sexp
+            (lambda (form) (read-string "form: " form))
+            "(macroexpand '%s)"
+            "No sexp found")
 
-(defun scrim-send-load-file (file)
-  "Sends (load-file file) to the REPL."
-  (interactive (list (expand-file-name
-                      (read-file-name "file: " nil buffer-file-name t (file-name-nondirectory buffer-file-name))))
-               scrim-mode scrim-minor-mode)
-  (comint-check-source file)
-  (if file
-      (scrim--send (scrim-proc) (format "(load-file \"%s\")" file))
-    (user-error "No file found")))
+(scrim--cmd scrim-send-macroexpand-1
+            "Sends (macroexpand-1 form) to the REPL."
+            'scrim-previous-sexp
+            (lambda (form) (read-string "form: " form))
+            "(macroexpand-1 '%s)"
+            "No sexp found")
+
+(scrim--cmd scrim-send-macroexpand-all
+            "Sends (clojure.walk/macroexpand-all form) to the REPL."
+            'scrim-previous-sexp
+            (lambda (form) (read-string "form: " form))
+            "(clojure.walk/macroexpand-all '%s)"
+            "No sexp found")
+
+(scrim--cmd scrim-send-load-file
+            "Sends (load-file name) to the REPL."
+            (lambda () buffer-file-name)
+            (lambda (default-file-name)
+              (let ((file (expand-file-name
+                           (read-file-name "file: " nil default-file-name t (file-name-nondirectory default-file-name)))))
+                (comint-check-source file)
+                file))
+            "(load-file \"%s\")"
+            "No file found")
 
 ;;; repl
 
 (scrim--cmd scrim-send-doc
             "Sends (clojure.repl/doc symbol) to the REPL."
             'scrim-symbol-at-point
-            (lambda (default-symbol) (read-string "doc for symbol: " default-symbol))
+            (lambda (default-symbol)
+              (if default-symbol
+                  (scrim--prompt-for-namespaced-symbol (clojure-find-ns) default-symbol)
+                (scrim--prompt-for-namespaced-symbol nil nil)))
             "(clojure.repl/doc %s)"
             "No symbol near point")
 
-(defun scrim--prompt-for-namespace (default-ns)
-  "Prompt the user for a namespace and returns the
-namespace.
-
-Uses process redirection to silently query the REPL for
-namespaces, which are then used in the prompt."
-  (let ((nss (read (scrim-redirect-result-from-process (scrim-proc) "(->> (all-ns) (map ns-name) (map name))"))))
-    (completing-read (if default-ns
-                         (format "ns (default %s): " default-ns)
-                       "ns: ")
-                     nss nil t nil nil default-ns)))
-
-(defun scrim--prompt-for-namespaced-symbol (default-ns default-symbol)
-  "Prompt the user for a namespace and a symbol and returns the
-namespaced symbol.
-
-Uses process redirection to silently query the REPL for
-namespaces and public symbols, which are then used in the
-prompt."
-  (let* ((ns (scrim--prompt-for-namespace default-ns))
-         (syms (read (scrim-redirect-result-from-process (scrim-proc) (format "(map first (ns-publics '%s))" ns))))
-         (sym (completing-read (if default-symbol
-                                   (format "sym (default %s): " default-symbol)
-                                 "sym: ")
-                               syms nil t nil nil default-symbol)))
-    (substring-no-properties
-     (string-join (list ns sym) "/"))))
+(scrim--cmd scrim-send-find-doc
+            "Sends (clojure.repl/find-doc re-string-or-pattern) to the REPL."
+            nil
+            (lambda (x) (read-string "re-string-or-pattern: "))
+            "(clojure.repl/find-doc %s)"
+            "No input")
 
 (scrim--cmd scrim-send-source
             "Sends (clojure.repl/source n) to the REPL."
@@ -703,21 +702,32 @@ prompt."
             "No namespace found")
 
 (scrim--cmd scrim-send-apropos
-            "Sends (doseq [v (sort (clojure.repl/apropos %s))] (println v)) to the REPL."
+            "Sends (doseq [v (sort (clojure.repl/apropos str-or-pattern))] (println v)) to the REPL."
             nil
-            (lambda (x) (read-string "apropos for str-or-pattern: "))
+            (lambda (x) (read-string "str-or-pattern: "))
             "(doseq [v (sort (clojure.repl/apropos %s))] (println v))"
-            "You didn't specify a string or pattern")
+            "No input")
 
 (defun scrim-send-pst ()
+  "Sends (clojure.repl/pst) to the REPL."
   (interactive nil scrim-mode scrim-minor-mode)
   (scrim--send (scrim-proc) "(clojure.repl/pst)"))
 
 ;;; pretty print
 
 (defun scrim-send-pp ()
+  "Sends #?(:clj (clojure.pprint/pp) :cljs (cljs.pprint/pp)) to the REPL."
   (interactive nil scrim-mode scrim-minor-mode)
   (scrim--send (scrim-proc) "#?(:clj (clojure.pprint/pp) :cljs (cljs.pprint/pp))"))
+
+;;; javadoc
+
+(scrim--cmd scrim-send-javadoc
+            "Sends (clojure.java.javadoc/javadoc class-or-object) to the REPL."
+            nil
+            (lambda (x) (read-string "class-or-object: "))
+            "(clojure.java.javadoc/javadoc %s)"
+            "No input")
 
 
 ;;;; scrim-db
