@@ -338,8 +338,7 @@ used to limit the part of buffer to be evaluated."
     (user-error "No expression.")))
 
 (defun scrim-eval-previous-sexp ()
-  "Send the expression nearest to point to the REPL
-process."
+  "Send the expression nearest to point to the REPL process."
   (interactive nil scrim-minor-mode)
   (if-let ((s (scrim-previous-sexp)))
       (scrim--send (scrim-proc) s)
