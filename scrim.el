@@ -333,19 +333,17 @@ used to limit the part of buffer to be evaluated."
 
 (defun scrim-eval-around-or-previous-sexp ()
   (interactive nil scrim-minor-mode)
-  (let ((s (scrim-outer-around-or-previous-sexp)))
-    (if s
-        (scrim--send (scrim-proc) s)
-      (user-error "No expression."))))
+  (if-let ((s (scrim-outer-around-or-previous-sexp)))
+      (scrim--send (scrim-proc) s)
+    (user-error "No expression.")))
 
 (defun scrim-eval-previous-sexp ()
   "Send the expression nearest to point to the REPL
 process."
   (interactive nil scrim-minor-mode)
-  (let ((s (scrim-previous-sexp)))
-    (if s
-        (scrim--send (scrim-proc) s)
-      (user-error "No expression."))))
+  (if-let ((s (scrim-previous-sexp)))
+      (scrim--send (scrim-proc) s)
+    (user-error "No expression.")))
 
 (defun scrim-quit ()
   "Send EOF to the Scrim REPL process."
