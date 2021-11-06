@@ -178,6 +178,7 @@ exist."
     (goto-char (point-max))))
 
 (defun scrim-repl-buffer-end ()
+  "Move point to the end of the Scrim REPL buffer."
   (interactive nil scrim-mode scrim-minor-mode)
   (if (get-buffer scrim--buffer-name)
       (set-window-point (get-buffer-window scrim--buffer-name "visible")
@@ -240,7 +241,7 @@ it in."
       (unless end? (goto-char start)))))
 
 (defun scrim--indent-line ()
-  "In the REPL buffer, this attempts to show a hidden input
+  "In the Scrim REPL buffer, this attempts to show a hidden input
 expression, otherwise invokes `clojure-indent-line'."
   (or (scrim-show-repl-input-at-point)
       (clojure-indent-line)))
@@ -509,13 +510,56 @@ m-x scrim-connect RET localhost RET 5555 RET"
                      (read-number "port: " scrim-default-port)))
   (scrim (cons host port)))
 
+^L
+;;;; Backend fns
+
+;;------------------------------------------------------------------------------
+;; TODO: Change these next two functions such that they don't send anything to
+;; the REPL if the user doesn't want that.
+
+;; Consider also falling back to scrim-db.
+
+(defun scrim--get-namespace-names ()
+  (read (scrim-redirect-result-from-process
+         (scrim-proc)
+         "(->> (all-ns) (map ns-name) (map name))")))
+
+(defun scrim--get-public-symbols (ns-name)
+  (read (scrim-redirect-result-from-process
+         (scrim-proc)
+         (format "(map first (ns-publics '%s))" ns-name))))
+
+;;------------------------------------------------------------------------------
+
+(defun scrim--prompt-for-namespace (default-ns)
+  "Prompt the user for a namespace and return the namespace."
+  (let ((nss (scrim--get-namespace-names)))
+    (completing-read (if default-ns
+                         (format "ns (default %s): " default-ns)
+                       "ns: ")
+                     nss nil t nil nil default-ns)))
+
+(defun scrim--prompt-for-namespaced-symbol (default-ns default-symbol)
+  "Prompt the user for a namespace and a symbol and return the
+namespaced symbol."
+  ;; TODO: Consider not using default-symbol if default-ns wasn't selected.
+  (let* ((ns (scrim--prompt-for-namespace default-ns))
+         (syms (scrim--get-public-symbols ns))
+         (sym (completing-read (if default-symbol
+                                   (format "sym (default %s): " default-symbol)
+                                 "sym: ")
+                               syms nil t nil nil default-symbol)))
+    (substring-no-properties
+     (string-join (list ns sym) "/"))))
+
 
 ;;;; Commands that build common Clojure expressions, usually based on symbols
 ;;;; near point, and send them to the REPL.
 
 (defcustom scrim-always-prompt-p nil
-  "If non-nil, interactive commands that send expressions to the
-REPL will always prompt the user before sending.")
+  "If non-nil, interactive commands that take an argument and send
+expressions to the REPL will always prompt the user before
+sending.")
 
 (defmacro scrim--cmd (name docstring default-fn prompt-fn clj-format-string error-msg)
   "Macro for defining simple commands that compose a Clojure
@@ -537,8 +581,8 @@ returns nil or a blank string, if a prefix argument was supplied,
 or if scrim-always-prompt-p is non-nil. This allows users to
 control the conditions under which they will get prompted. For
 example, a user (like me) might want the command to DWIM and
-avoid a prompt, whereas someone else might want to confirm every
-expression before it is sent to the REPL.
+avoid a prompt, if possible, whereas someone else might want to
+confirm every expression before it is sent to the REPL.
 
 CLJ-FORMAT-STRING is a format string for a Clojure expression. It
 should take one argument: the input value.
