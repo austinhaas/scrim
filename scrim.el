@@ -446,6 +446,7 @@ used to limit the part of buffer to be evaluated."
   (clojure-mode-variables)
   (clojure-font-lock-setup)
   (setq comint-prompt-regexp scrim-prompt-regexp)
+  (setq comint-scroll-to-bottom-on-input t)
   (setq mode-line-process '(":%s"))
   (setq-local comint-prompt-read-only scrim-prompt-read-only)
   ;; eldoc currently works for symbols in clojure.core and fully-qualified
