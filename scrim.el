@@ -331,13 +331,15 @@ used to limit the part of buffer to be evaluated."
   (interactive nil scrim-minor-mode)
   (scrim-eval-region (point-min) (point-max)))
 
-(defun scrim-eval-around-or-previous-sexp ()
+(defun scrim-eval-defn ()
+  "Evaluate the top-level form containing point, or before point."
+  ;; In elisp it is containing point, or after point. And bound to C-M-x.
   (interactive nil scrim-minor-mode)
   (if-let ((s (scrim-outer-around-or-previous-sexp)))
       (scrim--send (scrim-proc) s)
     (user-error "No expression.")))
 
-(defun scrim-eval-previous-sexp ()
+(defun scrim-eval-last-sexp ()
   "Send the expression nearest to point to the REPL process."
   (interactive nil scrim-minor-mode)
   (if-let ((s (scrim-previous-sexp)))
@@ -355,29 +357,6 @@ used to limit the part of buffer to be evaluated."
 
 ;;;; Keymaps
 
-(defvar scrim-repl-map
-  (let ((map (define-prefix-command 'scrim-repl-map)))
-    (define-key map (kbd "d")   #'scrim-send-doc)
-    (define-key map (kbd "f d") #'scrim-send-find-doc)
-    (define-key map (kbd "s")   #'scrim-send-source)
-    (define-key map (kbd "C-a") #'scrim-send-apropos)
-    (define-key map (kbd "C-d") #'scrim-send-dir)
-    (define-key map (kbd "p")   #'scrim-send-pst)
-    map)
-  "Bindings for functions in clojure.repl.")
-
-(defvar scrim-pprint-map
-  (let ((map (define-prefix-command 'scrim-pprint-map)))
-    (define-key map (kbd "p") #'scrim-send-pp)
-    map)
-  "Bindings for functions in clojure.pprint.")
-
-(defvar scrim-javadoc-map
-  (let ((map (define-prefix-command 'scrim-javadoc-map)))
-    (define-key map (kbd "j") #'scrim-send-javadoc)
-    map)
-  "Bindings for functions in clojure.java.javadoc.")
-
 (defvar scrim-mode-map
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map comint-mode-map)
@@ -388,29 +367,61 @@ used to limit the part of buffer to be evaluated."
 
 (defvar scrim-minor-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-c C-S-c") #'scrim-connect)
+    (define-key map (kbd "C-c C-M-c") #'scrim-connect)
+
     (define-key map (kbd "C-c C-q")   #'scrim-quit)
 
     (define-key map (kbd "C-c C-z")   #'scrim-show-or-hide-repl-buffer)
+
     (define-key map (kbd "C-c o")     #'scrim-clear-repl-buffer)
+    (define-key map (kbd "C-c C-o")   #'scrim-clear-repl-buffer)
+
     (define-key map (kbd "C-c C-s e") #'scrim-repl-buffer-end)
 
-    (define-key map (kbd "C-c e")     #'scrim-eval-previous-sexp)
-    (define-key map (kbd "C-c C-c")   #'scrim-eval-around-or-previous-sexp)
-    (define-key map (kbd "C-c C-e b") #'scrim-eval-buffer)
-    (define-key map (kbd "C-c C-e r") #'scrim-eval-region)
+    (define-key map (kbd "C-c e")     #'scrim-eval-last-sexp)
+    (define-key map (kbd "C-c C-e")   #'scrim-eval-last-sexp)
+    (define-key map (kbd "C-x C-e")   #'scrim-eval-last-sexp)
+
+    (define-key map (kbd "C-c C-c")   #'scrim-eval-defn)
+    (define-key map (kbd "C-M-x")     #'scrim-eval-defn)
+
+    (define-key map (kbd "C-c b")     #'scrim-eval-buffer)
+    (define-key map (kbd "C-c C-b")   #'scrim-eval-buffer)
+
+    (define-key map (kbd "C-c C-M-r") #'scrim-eval-region)
 
     (define-key map (kbd "C-c l")     #'scrim-send-load-file)
+    (define-key map (kbd "C-c C-l")   #'scrim-send-load-file)
+
     (define-key map (kbd "C-c r")     #'scrim-send-require)
+    (define-key map (kbd "C-c C-r")   #'scrim-send-require)
+
     (define-key map (kbd "C-c n")     #'scrim-send-in-ns)
+    (define-key map (kbd "C-c C-n")   #'scrim-send-in-ns)
+
     (define-key map (kbd "C-c a")     #'scrim-send-arglists)
+    (define-key map (kbd "C-c C-a")   #'scrim-send-arglists)
 
     (define-key map (kbd "C-c m m")   #'scrim-send-macroexpand)
-    (define-key map (kbd "C-c m 1")   #'scrim-send-macroexpand-1)
+    (define-key map (kbd "C-c C-m m") #'scrim-send-macroexpand)
 
-    (define-key map (kbd "C-c C-r")   'scrim-repl-map)
-    (define-key map (kbd "C-c C-p")   'scrim-pprint-map)
-    (define-key map (kbd "C-c C-j")   'scrim-javadoc-map)
+    (define-key map (kbd "C-c m 1")   #'scrim-send-macroexpand-1)
+    (define-key map (kbd "C-c C-m 1") #'scrim-send-macroexpand-1)
+
+    (define-key map (kbd "C-c m a")   #'scrim-send-macroexpand-all)
+    (define-key map (kbd "C-c C-m a") #'scrim-send-macroexpand-all)
+
+    (define-key map (kbd "C-c C-d d") #'scrim-send-doc)
+    (define-key map (kbd "C-c C-d j") #'scrim-send-javadoc)
+    (define-key map (kbd "C-c C-d f") #'scrim-send-find-doc)
+    (define-key map (kbd "C-c C-d s") #'scrim-send-source)
+    (define-key map (kbd "C-c C-d a") #'scrim-send-apropos)
+
+    (define-key map (kbd "C-c C-M-d") #'scrim-send-dir)
+
+    (define-key map (kbd "C-c e")     #'scrim-send-pst)
+    (define-key map (kbd "C-c p")     #'scrim-send-pp)
+
     map))
 
 
