@@ -1,3 +1,6 @@
+;; Remove some clojure-mode keybindings that I don't use.
+(define-key clojure-mode-map (kbd "C-:") nil)
+(define-key clojure-mode-map clojure-refactor-map-prefix nil)
 
 (customize-set-variable 'scrim-default-host "localhost") ;; This is the default.
 (customize-set-variable 'scrim-default-port 5555) ;; This is the default.
