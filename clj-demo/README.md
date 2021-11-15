@@ -1,4 +1,4 @@
-# A guide to developing with Clojure, Emacs, and Scrim
+# A demo project for developing with Clojure, Emacs, and Scrim
 
 This will show you how to connect all of the pieces and test that everything works.
 
@@ -13,7 +13,7 @@ This will show you how to connect all of the pieces and test that everything wor
 cd <scrim-install-dir>/clj-demo/
 ```
 
-### Step 2: Start a Clojure REPL socket server.
+### Step 2: (Optional) Start a Clojure REPL socket server.
 ```
 make clj-repl
 ```
@@ -25,7 +25,7 @@ To see what this command does, run `make -n clj-repl` or [read the makefile](mak
 C-x C-f <scrim-install-dir>/clj-demo/src/clj_demo/demo.clj RET
 ```
 
-## Debugging
+## Debugging (when using the socket server)
 
 ### Test without Emacs and Scrim
 

@@ -1,4 +1,4 @@
-# A guide to developing with ClojureScript, Emacs, and Scrim
+# A demo project for developing with ClojureScript, Emacs, and Scrim
 
 This will show you how to connect all of the pieces and test that everything works.
 
@@ -30,22 +30,15 @@ make cljs-node-repl
 ```
 or
 ```
-make clj-browser-repl
+make cljs-browser-repl
 ```
 
-### Step 3: Open the ClojureScript file in Emacs
-```
-C-x C-f scrim-install-dir/cljs-demo/src/cljs_demo/demo.cljs RET
-```
+To see what these commands do, run `make -n cljs-node-repl` or `make -n cljs-browser-repl` or [read the makefile](makefile).
 
-### Step 4: Connect Scrim
+### Step 3: Open the ClojureScript file in Emacs and follow instructions there
 ```
-M-x scrim-connect RET localhost RET 5555
+C-x C-f <scrim-install-dir>/cljs-demo/src/cljs_demo/demo.cljs RET
 ```
-
-### Step 5: Evaluate code in Emacs
-
-
 
 ## Debugging
 

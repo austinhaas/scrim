@@ -1,5 +1,6 @@
 {:deps
- {org.clojure/clojurescript {:mvn/version "1.10.866"}}
+ {org.clojure/clojure       {:mvn/version "1.10.3"}
+  org.clojure/clojurescript {:mvn/version "1.10.891"}}
 
  :aliases
  {:cljs-node-repl-server

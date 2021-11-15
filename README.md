@@ -2,7 +2,7 @@
 
 An Emacs package for Clojure REPL interaction.
 
-A major mode for connection to a Clojure REPL process in a buffer.
+A major mode for a Clojure REPL process in a buffer.
 
 A minor mode for buffers containing Clojure(Script) code.
 
@@ -67,6 +67,26 @@ steps required to get to a working interactive development environment.
 ## Bugs, feedback, etc.
 
 Please create an issue here: https://github.com/austinhaas/scrim/issues
+
+## Debugging
+
+### Launch a socket server
+
+
+
+### Connect to it from Emacs
+
+
+### Test without Emacs and Scrim
+
+```
+telnet localhost 5555
+```
+
+### View all communication between Scrim and the Java process
+```
+sudo ngrep -d any port 5555
+```
 
 ## Credit
 
