@@ -79,3 +79,15 @@
 ;; input, rather than deriving it from the position of point in a buffer.
 
 (other/foo)
+
+:foo
+
+(foo)
+
+(clj-demo.other/foo)
+
+(defn bar [] 100)
+
+(resolve 'othe/foo)
+
+other

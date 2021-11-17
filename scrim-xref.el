@@ -45,6 +45,8 @@
 (defun scrim--xref-backend () 'scrim)
 
 (defun scrim--archive-extract (archive file)
+  "Extract archive into its own buffer and return the buffer. Does
+not create a new buffer if one already exists."
   ;; Implementation based on `archive-extract'.
   (let* ((arcdir (file-name-directory archive))
          (arcname (file-name-nondirectory archive))
@@ -129,43 +131,102 @@ before returning an xref."
            (xref-make (prin1-to-string symbol)
                       (scrim--xref-make-archive-location archive file line column))))))
 
+;;; backend implementation
+
+;; Should both of these return namespaced symbols?
+
 (cl-defmethod xref-backend-identifier-at-point ((_backend (eql scrim)))
+  ;; May return simple, aliased, or namespaced symbols.
+
+  ;; We should be able to get the namespaced symbol.
+
   (scrim-symbol-at-point))
 
+;; Doesn't work in cljs, because cljs doesn't have `all-ns`. The completing-read
+;; that uses this doens't require a match, so it doesn't break
+;; anything. Consider returning whatever we can for cljs, such as symbols in the
+;; current and well-known namespaces.
 (cl-defmethod xref-backend-identifier-completion-table ((_backend (eql scrim)))
-  ;; This supports find-definition and find-references.
-  (scrim--repl-get-every-namespaced-symbol))
+  (scrim--repl-get-all-namespaced-symbols))
 
-(cl-defmethod xref-backend-identifier-completion-ignore-case ((_backend (eql scrim)))
-  nil)
-
+;; Doesn't work in cljs, because we can't get source file locations.
 (cl-defmethod xref-backend-definitions ((_backend (eql scrim)) identifier)
-  (when-let ((loc (scrim--repl-find-definition-location identifier)))
+  ;; TODO: Return all generic method implementations for identifier.
+
+  ;; TODO: Determine how to handle vars that were evaluated in the REPL. If we
+  ;; use this bogus location xref, an error will be thrown if any of these are
+  ;; returned. If we use nil, the var will be silently elided. Maybe we should
+  ;; return a buffer xref to the REPL?
+
+  ;; (xref-make-bogus-location "NO_SOURCE_PATH")
+
+  (when-let ((loc (read (scrim-redirect-result-from-process
+                         (scrim-proc)
+                         (format "(let [{:keys [file line column]} (meta (resolve '%s))]
+  (when (not (= \"NO_SOURCE_PATH\" file))
+    (list (str (.getResource (clojure.lang.RT/baseLoader) file))
+          line
+          column)))" identifier)))))
     (let ((file (car loc))
           (line (cadr loc))
           (column (caddr loc)))
       (when-let ((xref (scrim--get-xref identifier file line column)))
         (list xref)))))
 
-(cl-defmethod xref-backend-apropos ((_backend (eql scrim)) pattern)
-  (mapcar (lambda (x)
-            (let* ((symbol (car x))
-                   (file (cadr x))
-                   (line (caddr x))
-                   (column (cadddr x)))
-              (if (and file (not (string-equal file "NO_SOURCE_PATH")))
-                  (when-let ((xref (scrim--get-xref symbol file line column)))
-                    xref)
-                ;; TODO: Determine how to handle vars that were
-                ;; evaluated in the REPL. If we use this bogus
-                ;; location xref, an error will be thrown if any
-                ;; of these are returned. If we use nil, the var
-                ;; will be silently elided. Maybe we should return
-                ;; a buffer xref to the REPL?
+;; Doesn't work in cljs, because there is no `all-ns` or `ns-refers`.
+(defun scrim--repl-find-possible-references (identifier)
+  "Takes a namespaced symbol and returns a list of (file strings)."
+  ;; This has some limitations:
 
-                ;;(xref-make-bogus-location "NO_SOURCE_PATH")
-                nil)))
-          (scrim--repl-get-apropos-locations pattern)))
+  ;;   `identifier` must be a fully qualified symbol.
+
+  ;;   Doesn't detect references via :use.
+
+  ;;   Doesn't find fully qualified symbols, unless they are also mentioned in
+  ;;   the namespace's refers or aliases.
+
+  ;;   Doesn't find symbols evaluated in the REPL.
+  (read (scrim-redirect-result-from-process
+         (scrim-proc)
+         (format "#?(:clj
+(let [symbol-in     '%s
+      symbol-ns     (namespace symbol-in)
+      symbol-name   (name symbol-in)
+      simple-symbol (symbol symbol-name)]
+  (keep (fn [ns]
+          ;; HACK! Getting the file from the ns based on the first public symbol
+          ;; in that ns.
+          (let [file    (->> (ns-interns ns)
+                             vals
+                             (map meta)
+                             (keep (fn [{:keys [file]}]
+                                     (when (and file
+                                                (clojure.string/starts-with? file \"file:\"))
+                                       (str (.getResource (clojure.lang.RT/baseLoader) file)))))
+                             first)
+                strings (concat
+                         ;; Source ns
+                         (when (= (name (ns-name ns)) symbol-ns)
+                           [symbol-name])
+                         ;; Referred (make sure ns matches)
+                         (when (some->
+                                 (ns-refers ns)
+                                 (get simple-symbol)
+                                 meta
+                                 :ns
+                                 ns-name
+                                 name
+                                 (= symbol-ns))
+                           [symbol-name])
+                         ;; Aliased (make sure ns matches)
+                         (for [[k v] (ns-aliases ns)
+                               :when (= (name (ns-name v)) symbol-ns)]
+                           (str k \"/\" symbol-name)))]
+            (when (and file (seq strings))
+              (list file strings))))
+        (all-ns)))
+   :cljs nil)"
+                 identifier))))
 
 (cl-defmethod xref-backend-references ((_backend (eql scrim)) identifier)
   ;; Doesn't find symbols in jars, even if they are already extracted into
@@ -182,3 +243,10 @@ before returning an xref."
               (when file
                 (xref-matches-in-files regexp (list file)))))
           (scrim--repl-find-possible-references identifier)))
+
+(cl-defmethod xref-backend-apropos ((backend (eql scrim)) pattern)
+  (mapcan (lambda (symbol) (xref-backend-definitions backend symbol))
+          (read (scrim-redirect-result-from-process
+                 (scrim-proc)
+                 (format "(clojure.repl/apropos \"%s\")"
+                         pattern)))))

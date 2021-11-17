@@ -419,24 +419,36 @@ process."
 ;; The fns should be one of several backend implementations.
 
 ;; Doesn't work in cljs, because cljs doesn't have `all-ns`.
-(defun scrim--repl-get-namespace-names ()
+(defun scrim--repl-get-all-namespaces ()
   "Query the REPL for a list of namespace names."
   (read (scrim-redirect-result-from-process
          (scrim-proc)
          "#?(:clj (->> (all-ns) (map ns-name) (map name)) :cljs nil)")))
 
-(defun scrim--repl-get-public-symbols (ns-name)
-  "Query the REPL for public symbols in the namespace named by
-NS-NAME."
+;; (defun scrim--repl-get-public-symbols (ns-name)
+;;   "Query the REPL for public symbols in the namespace named by
+;; NS-NAME."
+;;   (read (scrim-redirect-result-from-process
+;;          (scrim-proc)
+;;          (format "(map first (ns-publics '%s))" ns-name))))
+
+(defun scrim--repl-get-all-namespaced-symbols ()
   (read (scrim-redirect-result-from-process
          (scrim-proc)
-         (format "(map first (ns-publics '%s))" ns-name))))
+         "#?(:clj
+ (->> (all-ns)
+     (mapcat (comp vals ns-interns))
+     (map meta)
+     (map #(str (:ns %) \"/\" (:name %))))
+ :cljs nil)")))
 
-(defun scrim--repl-completion-table (s)
-  (let ((ns (clojure-find-ns)))
-    (read (scrim-redirect-result-from-process
-      (scrim-proc)
-      (format "#?(:clj
+;; This assumes the current ns is available.
+;; TODO: Make it safe. Use try...catch. Return nil.
+(defun scrim--repl-get-all-symbols-in-current-ns ()
+  (read (let ((ns (clojure-find-ns)))
+          (scrim-redirect-result-from-process
+           (scrim-proc)
+           (format "#?(:clj
    (let [ns '%s]
      (concat
       (map str (keys (ns-interns ns)))
@@ -451,94 +463,6 @@ NS-NAME."
     (map str (keys (ns-imports '%s)))
     (map str (vals (ns-imports '%s)))))"
               ns ns ns ns)))))
-
-;; Doesn't work in cljs, because cljs doesn't have `all-ns`.
-(defun scrim--repl-get-every-namespaced-symbol ()
-  (read (scrim-redirect-result-from-process
-         (scrim-proc)
-         "#?(:clj
- (->> (all-ns)
-     (mapcat (comp vals ns-interns))
-     (map meta)
-     (map #(str (:ns %) \"/\" (:name %))))
- :cljs nil)")))
-
-;; TODO: Check if this works on aliased fns.
-;; Doesn't work in cljs, because we can't get source file locations.
-(defun scrim--repl-find-definition-location (identifier)
-  (read (scrim-redirect-result-from-process
-         (scrim-proc)
-         (format "(let [{:keys [file line column]} (meta (resolve '%s))]
-  (when (not (= \"NO_SOURCE_PATH\" file))
-    (list (str (.getResource (clojure.lang.RT/baseLoader) file))
-          line
-          column)))" identifier))))
-
-;; Doesn't work in cljs, because there is no `all-ns` or `ns-refers`.
-(defun scrim--repl-find-possible-references (identifier)
-  "Takes a namespaced symbol and returns a list of (file strings)."
-  ;; This has some limitations:
-
-  ;;   `identifier` must be a fully qualified symbol.
-
-  ;;   Doesn't detect references via :use.
-
-  ;;   Doesn't find fully qualified symbols, unless they are also mentioned in
-  ;;   the namespace's refers or aliases.
-
-  ;;   Doesn't find symbols evaluated in the REPL.
-  (read (scrim-redirect-result-from-process
-         (scrim-proc)
-         (format "#?(:clj
-(let [symbol-in     '%s
-      symbol-ns     (namespace symbol-in)
-      symbol-name   (name symbol-in)
-      simple-symbol (symbol symbol-name)]
-  (keep (fn [ns]
-          ;; HACK! Getting the file from the ns based on the first public symbol
-          ;; in that ns.
-          (let [file    (->> (ns-interns ns)
-                             vals
-                             (map meta)
-                             (keep (fn [{:keys [file]}]
-                                     (when (and file
-                                                (clojure.string/starts-with? file \"file:\"))
-                                       (str (.getResource (clojure.lang.RT/baseLoader) file)))))
-                             first)
-                strings (concat
-                         ;; Source ns
-                         (when (= (name (ns-name ns)) symbol-ns)
-                           [symbol-name])
-                         ;; Referred (make sure ns matches)
-                         (when (some->
-                                 (ns-refers ns)
-                                 (get simple-symbol)
-                                 meta
-                                 :ns
-                                 ns-name
-                                 name
-                                 (= symbol-ns))
-                           [symbol-name])
-                         ;; Aliased (make sure ns matches)
-                         (for [[k v] (ns-aliases ns)
-                               :when (= (name (ns-name v)) symbol-ns)]
-                           (str k \"/\" symbol-name)))]
-            (when (and file (seq strings))
-              (list file strings))))
-        (all-ns)))
-   :cljs nil)"
-                 identifier))))
-
-;; Doesn't work in cljs, because `resolve` is a macro in cljs.
-(defun scrim--repl-get-apropos-locations (pattern)
-  "Query the REPL via clojure.repl/apropos and return a list of
- (symbol :file, :line, and :column). "
-  (read (scrim-redirect-result-from-process
-         (scrim-proc)
-         (format "(->> (clojure.repl/apropos \"%s\")
-     (map (juxt name (comp (juxt (comp #(str (.getResource (clojure.lang.RT/baseLoader) %%)) :file) :line :column) meta resolve)))
-     (map (partial apply list*)))"
-                 pattern))))
 
 ;;------------------------------------------------------------------------------
 
@@ -616,14 +540,16 @@ string."
             "Send (in-ns ns) to the REPL."
             'clojure-find-ns
             (lambda (default-ns)
-              (let ((nss (scrim--repl-get-namespace-names))
-                    (prompt (scrim--prompt "in ns" default-ns)))
-                ;; Not requiring user to select from nss, because it is
-                ;; permissible to create a new ns.
-                (completing-read prompt nss nil nil nil nil default-ns)))
+              (completing-read (scrim--prompt "in ns" default-ns)
+                               (completion-table-with-cache
+                                (lambda (s)
+                                  (scrim--repl-get-all-namespaces)))
+                               nil nil nil nil
+                               default-ns))
             "(in-ns '%s)"
             "Namespace not found")
 
+;; TODO: use completion
 (scrim--cmd scrim-send-arglists
             "Send (:arglists (meta (resolve ns))) to the REPL."
             'scrim-current-function-symbol
@@ -665,7 +591,9 @@ string."
             (lambda () buffer-file-name)
             (lambda (default-file-name)
               (let ((file (expand-file-name
-                           (read-file-name "file: " nil default-file-name t (file-name-nondirectory default-file-name)))))
+                           (read-file-name "file: "
+                                           nil default-file-name t
+                                           (file-name-nondirectory default-file-name)))))
                 (comint-check-source file)
                 file))
             "(load-file \"%s\")"
@@ -673,26 +601,25 @@ string."
 
 ;;; repl
 
+;; TODO: Can't cache this completion because we need the SWITCH-BUFFER
+;; argument that only completion-table-dynamic provides, in order to
+;; use `clojure-find-ns' in `scrim--repl-get-all-symbols-in-current-ns'.
 (scrim--cmd scrim-send-doc
-            "Send (clojure.repl/doc symbol) to the REPL."
+            "Send (clojure.repl/doc name) to the REPL."
             'scrim-symbol-at-point
             (lambda (default-symbol)
-              (let* ((default-ns (if default-symbol (clojure-find-ns) nil))
-                     (nss (scrim--repl-get-namespace-names))
-                     (ns (completing-read (scrim--prompt "ns" default-ns)
-                                          nss
-                                          nil
-                                          ;; HACK: We can't get the collection of namespaces
-                                          ;; in cljs, so if nss is nil, don't REQUIRE-MATCH.
-                                          (and nss t)
-                                          nil
-                                          nil
-                                          default-ns))
-                     (syms (scrim--repl-get-public-symbols ns)))
-                (completing-read (scrim--prompt "sym" default-symbol)
-                                 syms nil t nil nil default-symbol)))
+              (completing-read (scrim--prompt "name" default-symbol)
+                               (completion-table-dynamic
+                                (lambda (s)
+                                  ;; TODO: Include keywords, for specs.
+                                  (append (scrim--repl-get-all-namespaces)
+                                          (scrim--repl-get-all-symbols-in-current-ns)
+                                          (scrim--repl-get-all-namespaced-symbols)))
+                                t)
+                               nil nil nil nil
+                               default-symbol))
             "(clojure.repl/doc %s)"
-            "No symbol near point")
+            "No name near point")
 
 (scrim--cmd scrim-send-find-doc
             "Send (clojure.repl/find-doc re-string-or-pattern) to the REPL."
@@ -704,21 +631,15 @@ string."
 (scrim--cmd scrim-send-source
             "Send (clojure.repl/source n) to the REPL."
             'scrim-symbol-at-point
-            (lambda (default-symbol)
-              (let* ((default-ns (if default-symbol (clojure-find-ns) nil))
-                     (nss (scrim--repl-get-namespace-names))
-                     (ns (completing-read (scrim--prompt "ns" default-ns)
-                                          nss
-                                          nil
-                                          ;; HACK: We can't get the collection of namespaces
-                                          ;; in cljs, so if nss is nil, don't REQUIRE-MATCH.
-                                          (and nss t)
-                                          nil
-                                          nil
-                                          default-ns))
-                     (syms (scrim--repl-get-public-symbols ns)))
-                (completing-read (scrim--prompt "sym" default-symbol)
-                                 syms nil t nil nil default-symbol)))
+            (completing-read (scrim--prompt "symbol" default-symbol)
+                               (completion-table-dynamic
+                                (lambda (s)
+                                  (append (scrim--repl-get-all-namespaces)
+                                          (scrim--repl-get-all-symbols-in-current-ns)
+                                          (scrim--repl-get-all-namespaced-symbols)))
+                                t)
+                               nil nil nil nil
+                               default-symbol)
             "(clojure.repl/source %s)"
             "No symbol near point")
 
@@ -726,16 +647,12 @@ string."
             "Send (clojure.repl/dir nsname) to the REPL."
             'clojure-find-ns
             (lambda (default-ns)
-              (let ((nss (scrim--repl-get-namespace-names)))
-                (completing-read (scrim--prompt "ns" default-ns)
-                                 nss
-                                 nil
-                                 ;; HACK: We can't get the collection of namespaces
-                                 ;; in cljs, so if nss is nil, don't REQUIRE-MATCH.
-                                 (and nss t)
-                                 nil
-                                 nil
-                                 default-ns)))
+              (completing-read (scrim--prompt "ns" default-ns)
+                               (completion-table-with-cache
+                                (lambda (s)
+                                  (scrim--repl-get-all-namespaces)))
+                               nil nil nil nil
+                               default-ns))
             "(clojure.repl/dir %s)"
             "No namespace found")
 
