@@ -222,7 +222,7 @@ exist."
 (defun scrim-repl-buffer-end ()
   "Move point to the end of the Scrim REPL buffer."
   (interactive nil scrim-mode scrim-minor-mode)
-  (if (get-buffer scrim--buffer-name)
+  (if (scrim-proc)
       (set-window-point (get-buffer-window scrim--buffer-name "visible")
                         (process-mark (scrim-proc)))
     (user-error "Not connected.")))
@@ -242,13 +242,14 @@ buffer."
 (defun scrim-last-output ()
   "Return the text between the last prompt and the current prompt
 in the REPL."
-  (with-current-buffer scrim--buffer-name
-    (let* ((s (buffer-substring-no-properties comint-last-input-end (process-mark (scrim-proc))))
-           ;; Remove any trailing prompt.
-           (s (replace-regexp-in-string (concat scrim-prompt-regexp "\\'") "" s))
-           ;; Remove any trailing newlines.
-           (s (replace-regexp-in-string "\n+\\'" "" s)))
-      s)))
+  (when (scrim-proc)
+    (with-current-buffer scrim--buffer-name
+      (let* ((s (buffer-substring-no-properties comint-last-input-end (process-mark (scrim-proc))))
+             ;; Remove any trailing prompt.
+             (s (replace-regexp-in-string (concat scrim-prompt-regexp "\\'") "" s))
+             ;; Remove any trailing newlines.
+             (s (replace-regexp-in-string "\n+\\'" "" s)))
+        s))))
 
 
 ;;;; Low-level, comint I/O
@@ -292,58 +293,63 @@ property of an overlay."
     (delete-overlay ov)
     (message "Showing input... done")))
 
-(defun scrim--send-indirectly (proc s)
-  "Send the string s to process proc by first writing s to the
-process buffer and then sending it from there as if a user typed
-it in."
-  (with-current-buffer scrim--buffer-name
-    ;; If point is at the end of the buffer, move it forward, otherwise leave it. This doesn't work
-    ;; if point is within the previous output. I think comint adjusts point when the response is
-    ;; received. This is supposed to be DWIM, but might be too magical.
-    (let ((start (point))
-          (end?  (= (point) (point-max))))
-      (comint-goto-process-mark)
-      (insert s)
-      (save-excursion
-        (let ((e (point)))
-          (goto-char (process-mark (scrim-proc)))
-          (let ((b (line-end-position)))
-            (let ((ov (make-overlay b e)))
-              (overlay-put ov 'scrim t)
-              (overlay-put ov 'invisible 'scrim)
-              (overlay-put ov 'isearch-open-invisible 'scrim--isearch-show)
-              (overlay-put ov 'isearch-open-invisible-temporary 'scrim--isearch-show-temporary)
-              ;; TODO: Lookup keybinding dynamically. See `substitute-command-keys'.
-              ;;(overlay-put ov 'help-echo "\\[scrim--indent-line] to expand input.")
-              ))))
-      (comint-send-input)
-      (unless end? (goto-char start)))))
+(defun scrim--send-indirectly (process string)
+  "Send STRING to PROCESS by first writing STRING to the process
+buffer and then sending it from there as if a user typed it in."
+  (if process
+      (with-current-buffer (process-buffer process)
+        ;; If point is at the end of the buffer, move it forward, otherwise leave it. This doesn't work
+        ;; if point is within the previous output. I think comint adjusts point when the response is
+        ;; received. This is supposed to be DWIM, but might be too magical.
+        (let ((start (point))
+              (end?  (= (point) (point-max))))
+          (comint-goto-process-mark)
+          (insert string)
+          (save-excursion
+            (let ((e (point)))
+              (comint-goto-process-mark)
+              (let ((b (line-end-position)))
+                (let ((ov (make-overlay b e)))
+                  (overlay-put ov 'scrim t)
+                  (overlay-put ov 'invisible 'scrim)
+                  (overlay-put ov 'isearch-open-invisible 'scrim--isearch-show)
+                  (overlay-put ov 'isearch-open-invisible-temporary 'scrim--isearch-show-temporary)
+                  ;; TODO: Lookup keybinding dynamically. See `substitute-command-keys'.
+                  ;;(overlay-put ov 'help-echo "\\[scrim--indent-line] to expand input.")
+                  ))))
+          (comint-send-input)
+          (unless end? (goto-char start))))
+    (user-error "Not connected.")))
 
-(defun scrim--send-directly (proc s)
-  "Send the string s to process proc directly."
-  (comint-simple-send proc s))
+(defun scrim--send-directly (process string)
+  "Send STRING to PROCESS directly."
+  (if process
+      (comint-simple-send process string)
+    (user-error "Not connected.")))
 
-(defun scrim--send (proc s)
-  (scrim--send-indirectly proc s))
+(defun scrim--send (process string)
+  (scrim--send-indirectly process string))
 
 (defun scrim-redirect-result-from-process (process command)
   "Send COMMAND to PROCESS. Return the output. Does not show input
 or output in Scrim REPL buffer.
 
 Adapted from comint-redirect-results-list-from-process."
-  (let ((output-buffer " *Scrim Redirect Work Buffer*"))
-    (with-current-buffer (get-buffer-create output-buffer)
-      (erase-buffer)
-      (comint-redirect-send-command-to-process command output-buffer process nil t)
-      ;; Wait for the process to complete
-      (set-buffer (process-buffer process))
-      (while (and (null comint-redirect-completed)
-		              (accept-process-output process 60)))
-      ;; Collect the output
-      (set-buffer output-buffer)
-      (let ((s (buffer-substring-no-properties (point-min) (point-max))))
-        ;; Remove any trailing newlines
-        (replace-regexp-in-string "\n+\\'" "" s)))))
+  (if process
+      (let ((output-buffer " *Scrim Redirect Work Buffer*"))
+        (with-current-buffer (get-buffer-create output-buffer)
+          (erase-buffer)
+          (comint-redirect-send-command-to-process command output-buffer process nil t)
+          ;; Wait for the process to complete
+          (set-buffer (process-buffer process))
+          (while (and (null comint-redirect-completed)
+		                  (accept-process-output process 60)))
+          ;; Collect the output
+          (set-buffer output-buffer)
+          (let ((s (buffer-substring-no-properties (point-min) (point-max))))
+            ;; Remove any trailing newlines
+            (replace-regexp-in-string "\n+\\'" "" s))))
+    (user-error "Not connected.")))
 
 
 ;;;; High-level, Clojure I/O
