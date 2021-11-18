@@ -449,26 +449,31 @@ process."
  :cljs nil)")))
 
 ;; This assumes the current ns is available.
-;; TODO: Make it safe. Use try...catch. Return nil.
+
+;; TODO: Consider returning two values: the result and another value
+;; that indicates if any error occurred, for debugging.
 (defun scrim--repl-get-all-symbols-in-current-ns ()
   (read (let ((ns (clojure-find-ns)))
           (scrim-redirect-result-from-process
            (scrim-proc)
-           (format "#?(:clj
-   (let [ns '%s]
+           (format "(try
+  #?(:clj
+     (let [ns 'clj-demo.demo]
+       (concat
+        (map str (keys (ns-interns ns)))
+        (map str (keys (ns-refers ns)))
+        (for [[alias ns'] (ns-aliases ns), sym (keys (ns-publics ns'))] (str alias \"/\" sym))
+        (map str (keys (ns-imports ns)))
+        (map str (vals (ns-imports ns)))))
+     :cljs
      (concat
-      (map str (keys (ns-interns ns)))
-      (map str (keys (ns-refers ns)))
-      (for [[alias ns'] (ns-aliases ns), sym (keys (ns-publics ns'))] (str alias \"/\" sym))
-      (map str (keys (ns-imports ns)))
-      (map str (vals (ns-imports ns)))))
-   :cljs
-   (concat
-    (map str (keys (ns-publics 'cljs.core)))
-    (map str (keys (ns-interns '%s)))
-    (map str (keys (ns-imports '%s)))
-    (map str (vals (ns-imports '%s)))))"
-              ns ns ns ns)))))
+      (map str (keys (ns-publics 'cljs.core)))
+      (map str (keys (ns-interns '%s)))
+      (map str (keys (ns-imports '%s)))
+      (map str (vals (ns-imports '%s)))))
+  (catch #?(:clj Throwable :cljs :default) e
+         nil))"
+                   ns ns ns ns)))))
 
 ;;------------------------------------------------------------------------------
 
