@@ -774,8 +774,7 @@ string."
 
 \\{scrim-minor-mode-map}"
   :lighter " Scrim"
-  :keymap scrim-minor-mode-map
-  (setq-local comint-input-sender 'scrim--send))
+  :keymap scrim-minor-mode-map)
 
 (define-derived-mode scrim-mode comint-mode "scrim"
   "Major mode for a Clojure REPL.
