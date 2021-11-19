@@ -330,7 +330,7 @@ buffer and then sending it from there as if a user typed it in."
 (defun scrim--send (process string)
   (scrim--send-indirectly process string))
 
-(defun scrim-redirect-result-from-process (process command)
+(defun scrim--redirect-result-from-process (process command)
   "Send COMMAND to PROCESS. Return the output. Does not show input
 or output in Scrim REPL buffer.
 
@@ -427,19 +427,19 @@ process."
 ;; Doesn't work in cljs, because cljs doesn't have `all-ns`.
 (defun scrim--repl-get-all-namespaces ()
   "Query the REPL for a list of namespace names."
-  (read (scrim-redirect-result-from-process
+  (read (scrim--redirect-result-from-process
          (scrim-proc)
          "#?(:clj (->> (all-ns) (map ns-name) (map name)) :cljs nil)")))
 
 ;; (defun scrim--repl-get-public-symbols (ns-name)
 ;;   "Query the REPL for public symbols in the namespace named by
 ;; NS-NAME."
-;;   (read (scrim-redirect-result-from-process
+;;   (read (scrim--redirect-result-from-process
 ;;          (scrim-proc)
 ;;          (format "(map first (ns-publics '%s))" ns-name))))
 
 (defun scrim--repl-get-all-namespaced-symbols ()
-  (read (scrim-redirect-result-from-process
+  (read (scrim--redirect-result-from-process
          (scrim-proc)
          "#?(:clj
  (->> (all-ns)
@@ -449,16 +449,13 @@ process."
  :cljs nil)")))
 
 ;; This assumes the current ns is available.
-
-;; TODO: Consider returning two values: the result and another value
-;; that indicates if any error occurred, for debugging.
 (defun scrim--repl-get-all-symbols-in-current-ns ()
   (read (let ((ns (clojure-find-ns)))
-          (scrim-redirect-result-from-process
+          (scrim--redirect-result-from-process
            (scrim-proc)
            (format "(try
   #?(:clj
-     (let [ns 'clj-demo.demo]
+     (let [ns '%s]
        (concat
         (map str (keys (ns-interns ns)))
         (map str (keys (ns-refers ns)))
