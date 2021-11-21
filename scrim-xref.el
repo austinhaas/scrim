@@ -158,73 +158,9 @@ before returning an xref."
 
   ;; (xref-make-bogus-location "NO_SOURCE_PATH")
 
-  (pcase (read (scrim--redirect-result-from-process
-                (scrim-proc)
-                (format "(try
-  (let [{:keys [file line column]} (meta (resolve '%s))]
-    (when (and file (not (= \"NO_SOURCE_PATH\" file)))
-      (list (or (some-> (.getResource (clojure.lang.RT/baseLoader) file) str)
-                (str \"file:\"file))
-            line
-            column)))
-  (catch #?(:clj Throwable :cljs :default) e
-    nil))" identifier)))
+  (pcase (scrim--repl-get-path-to-symbol-source identifier)
     (`(,file ,line ,column) (when-let ((xref (scrim--get-xref identifier file line column)))
                               (list xref)))))
-
-;; Doesn't work in cljs, because there is no `all-ns` or `ns-refers`.
-(defun scrim--repl-find-possible-references (identifier)
-  "Takes a namespaced symbol and returns a list of (file strings)."
-  ;; This has some limitations:
-
-  ;;   `identifier` must be a fully qualified symbol.
-
-  ;;   Doesn't detect references via :use.
-
-  ;;   Doesn't find fully qualified symbols, unless they are also mentioned in
-  ;;   the namespace's refers or aliases.
-
-  ;;   Doesn't find symbols evaluated in the REPL.
-  (read (scrim--redirect-result-from-process
-         (scrim-proc)
-         (format "#?(:clj
-   (let [symbol-in     '%s
-         symbol-ns     (namespace symbol-in)
-         symbol-name   (name symbol-in)
-         simple-symbol (symbol symbol-name)]
-     (keep (fn [ns]
-             ;; Based on clojure.core/load-one, clojure.core/load, and clojure.lang.RT/load.
-             (let [file    (let [path (#'clojure.core/root-resource (ns-name ns))
-                                 path (if (.startsWith path \"/\")
-                                        path
-                                        (str (#'clojure.core/root-directory (ns-name *ns*)) \\/ path))
-                                 path (.substring path 1)]
-                             (str (or (.getResource (clojure.lang.RT/baseLoader) (str path \"__init\" \".class\"))
-                                      (.getResource (clojure.lang.RT/baseLoader) (str path \".clj\"))
-                                      (.getResource (clojure.lang.RT/baseLoader) (str path \".cljc\")))))
-                   strings (concat
-                            ;; Source ns
-                            (when (= (name (ns-name ns)) symbol-ns)
-                              [symbol-name])
-                            ;; Referred (make sure ns matches)
-                            (when (some->
-                                    (ns-refers ns)
-                                    (get simple-symbol)
-                                    meta
-                                    :ns
-                                    ns-name
-                                    name
-                                    (= symbol-ns))
-                              [symbol-name])
-                            ;; Aliased (make sure ns matches)
-                            (for [[k v] (ns-aliases ns)
-                                  :when (= (name (ns-name v)) symbol-ns)]
-                              (str k \"/\" symbol-name)))]
-               (when (and file (seq strings))
-                 (list file strings))))
-           (all-ns)))
-   :cljs nil)"
-                 identifier))))
 
 (cl-defmethod xref-backend-references ((_backend (eql scrim)) identifier)
   ;; Doesn't find symbols in jars, even if they are already extracted into
@@ -238,7 +174,7 @@ before returning an xref."
                        (regexp (regexp-opt strings 'words))) ;; TODO: Why doesn't 'symbols work?
                   (when file
                     (xref-matches-in-files regexp (list file)))))
-              (scrim--repl-find-possible-references identifier))
+              (scrim--repl-get-possible-references identifier))
       (cl-call-next-method)))
 
 (cl-defmethod xref-backend-apropos ((backend (eql scrim)) pattern)

@@ -458,9 +458,9 @@ In cljs, this only returns results for namespaces in
 
 This is intended to be used to support completion, and shouldn't
 be considered an exhaustive list."
-  (scrim--redirect-result-from-process
-   (scrim-proc)
-   (format "#?(:clj
+  (read (scrim--redirect-result-from-process
+         (scrim-proc)
+         (format "#?(:clj
  (->> (all-ns)
      (mapcat (comp vals ns-interns))
      (map meta)
@@ -469,12 +469,12 @@ be considered an exhaustive list."
      (mapcat vals)
      (map meta)
      (map #(str (:ns %%) \"/\" (:name %%)))))"
-           ;; In cljs, the argument to `ns-interns' must be quoted, so
-           ;; we have to wrap each ns individually here.
-           (string-join
-            (mapcar (lambda (ns) (format "(ns-interns '%s)" ns))
-                    cljs-default-namespaces)
-            " "))))
+            ;; In cljs, the argument to `ns-interns' must be quoted, so
+            ;; we have to wrap each ns individually here.
+            (string-join
+             (mapcar (lambda (ns) (format "(ns-interns '%s)" ns))
+                     cljs-default-namespaces)
+             " ")))))
 
 (defun scrim--repl-get-all-symbols-in-current-ns ()
   "Query the REPL for a list of all symbols that MAY BE in the ns
@@ -517,6 +517,109 @@ be considered an exhaustive list."
   (catch #?(:clj Throwable :cljs :default) e
          nil))"
                    ns ns ns ns)))))
+
+(defun scrim--repl-get-path-to-namespace-source-file (ns)
+  "Query the REPL for the path to the source file for namespace
+ns.
+
+In cljs, this returns nil, because I don't know how to get the
+source file location for a namespace in cljs."
+  (read (scrim--redirect-result-from-process
+         (scrim-proc)
+         (format "#?(:clj
+   ;; Based on clojure.core/load-one, clojure.core/load, and clojure.lang.RT/load.
+   (let [path (#'clojure.core/root-resource (ns-name '%s))
+         path (if (.startsWith path \"/\")
+                path
+                (str (#'clojure.core/root-directory (ns-name *ns*)) \\/ path))
+         path (.substring path 1)]
+     (str (or (.getResource (clojure.lang.RT/baseLoader) (str path \"__init\" \".class\"))
+              (.getResource (clojure.lang.RT/baseLoader) (str path \".clj\"))
+              (.getResource (clojure.lang.RT/baseLoader) (str path \".cljc\")))))
+   :cljs
+   nil)"
+                 ns))))
+
+(defun scrim--repl-get-path-to-symbol-source (symbol)
+  "Query the REPL for file, line, and column of the symbol's
+source definition.
+
+In cljs, this returns nil, because I don't know how to get the
+source file location for a symbol in cljs."
+  (read (scrim--redirect-result-from-process
+         (scrim-proc)
+         (format "#?(:clj
+   (when-let [{:keys [file line column]} (meta (resolve '%s))]
+     (when (not (= \"NO_SOURCE_PATH\" file))
+       (list (or (some-> (.getResource (clojure.lang.RT/baseLoader) file) str)
+                 (str \"file:\"file))
+             line
+             column)))
+   :cljs
+   nil)" symbol))))
+
+(defun scrim--repl-get-possible-references (identifier)
+  "Takes a namespaced symbol and returns a list of (file strings),
+where file is a file that might include a reference to this
+identifier, and strings is a list of possible forms this
+reference might take, such as a simple symbol if the symbol is
+referred, or an aliased symbol if the symbol's namespace is
+aliased.
+
+In cljs, this returns nil, because cljs doesn't have `all-ns' or
+`ns-refers'.
+
+This is intended to be used in an implementation of
+`xref-backend-references'."
+  ;; This has some limitations:
+
+  ;;   `identifier` must be a fully qualified symbol.
+
+  ;;   Doesn't detect references via :use.
+
+  ;;   Doesn't find fully qualified symbols, unless they are also mentioned in
+  ;;   the namespace's refers or aliases.
+
+  ;;   Doesn't find symbols evaluated in the REPL.
+
+  (let* ((namespaces (scrim--repl-get-all-namespaces))
+         (xs         (read (scrim--redirect-result-from-process
+                            (scrim-proc)
+                            (format "#?(:clj
+   (let [symbol-in     '%s
+         symbol-ns     (namespace symbol-in)
+         symbol-name   (name symbol-in)
+         simple-symbol (symbol symbol-name)]
+     (keep (fn [ns]
+             (let [strings (concat
+                            ;; Source ns
+                            (when (= (name (ns-name ns)) symbol-ns)
+                              [symbol-name])
+                            ;; Referred (make sure ns matches)
+                            (when (some->
+                                    (ns-refers ns)
+                                    (get simple-symbol)
+                                    meta
+                                    :ns
+                                    ns-name
+                                    name
+                                    (= symbol-ns))
+                              [symbol-name])
+                            ;; Aliased (make sure ns matches)
+                            (for [[k v] (ns-aliases ns)
+                                  :when (= (name (ns-name v)) symbol-ns)]
+                              (str k \"/\" symbol-name)))]
+               (when (seq strings)
+                 (list (ns-name ns) strings))))
+           (all-ns)))
+   :cljs nil)"
+                                    identifier)))))
+    (mapcar (lambda (x)
+              (let* ((ns      (car x))
+                     (strings (cadr x))
+                     (file    (scrim--repl-get-path-to-namespace-source-file ns)))
+                (list file strings)))
+            xs)))
 
 ;;------------------------------------------------------------------------------
 

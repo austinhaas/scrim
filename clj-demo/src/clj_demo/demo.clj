@@ -85,5 +85,7 @@
 
 other/bar
 
-(meta (resolve 'other/bar))
+(meta (resolve 'othe/bar))
 (meta (resolve 'clj-demo.demo/add-1))
+
+(ns-name (first (all-ns)))
