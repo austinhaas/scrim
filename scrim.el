@@ -422,23 +422,26 @@ process."
     (format "%s: " prompt)))
 
 ;;------------------------------------------------------------------------------
-;; The fns should be one of several backend implementations.
+;; REPL-based completion
 
-;; Doesn't work in cljs, because cljs doesn't have `all-ns`.
 (defun scrim--repl-get-all-namespaces ()
-  "Query the REPL for a list of namespace names."
+  "Query the REPL for a list of namespace names.
+
+Returns nil in cljs, because cljs doesn't have `all-ns'.
+
+This is intended to be used to support completion, and shouldn't
+be considered an exhaustive list."
   (read (scrim--redirect-result-from-process
          (scrim-proc)
          "#?(:clj (->> (all-ns) (map ns-name) (map name)) :cljs nil)")))
 
-;; (defun scrim--repl-get-public-symbols (ns-name)
-;;   "Query the REPL for public symbols in the namespace named by
-;; NS-NAME."
-;;   (read (scrim--redirect-result-from-process
-;;          (scrim-proc)
-;;          (format "(map first (ns-publics '%s))" ns-name))))
-
 (defun scrim--repl-get-all-namespaced-symbols ()
+  "Query the REPL for a list of all namespaced symbols.
+
+Returns nil in cljs, because cljs doesn't have `all-ns'.
+
+This is intended to be used to support completion, and shouldn't
+be considered an exhaustive list."
   (read (scrim--redirect-result-from-process
          (scrim-proc)
          "#?(:clj
@@ -448,8 +451,26 @@ process."
      (map #(str (:ns %) \"/\" (:name %))))
  :cljs nil)")))
 
-;; This assumes the current ns is available.
 (defun scrim--repl-get-all-symbols-in-current-ns ()
+  "Query the REPL for a list of all symbols that MAY BE in the ns
+that corresponds to the current buffer. The list will simple
+symbols that are interned or refered, all aliased symbols that
+could be in the current ns, and imports.
+
+Note that the symbols may or may not actually appear in the
+buffer/namespace. We're just looking at what is possible given
+the currently loaded state of the namespace. For example, if
+`clojure.string' is aliased as `str', then `str/split' will be
+included.
+
+This assumes that the ns in the current buffer is loaded. If the
+buffer ns hasn't been loaded, then this will return nil.
+
+In cljs, refered and aliased symbols are not included, because
+cljs doesn't have `ns-refers' and `ns-aliases'.
+
+This is intended to be used to support completion, and shouldn't
+be considered an exhaustive list."
   (read (let ((ns (clojure-find-ns)))
           (scrim--redirect-result-from-process
            (scrim-proc)
