@@ -424,38 +424,63 @@ process."
 ;;------------------------------------------------------------------------------
 ;; REPL-based completion
 
-(defun scrim--repl-get-all-namespaces ()
-  "Query the REPL for a list of namespace names.
+(defvar cljs-default-namespaces (list "cljs.core"
+                                      "cljs.pprint"
+                                      "cljs.repl"
+                                      "cljs.spec.alpha"
+                                      "cljs.spec.gen.alpha"
+                                      "clojure.string"
+                                      "cljs.test"
+                                      "cljs.user"
+                                      "clojure.walk")
+  "A list of namespaces that ClojureScript will always have
+available. This is intended to be used as a workaround to support
+completion tables in ClojureScript, which doesn't have `all-ns'.")
 
-Returns nil in cljs, because cljs doesn't have `all-ns'.
+(defun scrim--repl-get-all-namespaces ()
+  "Query the REPL for a list of all namespace names in the current environment.
+
+In cljs, this returns `cljs-default-namespaces', because cljs
+doesn't have `all-ns'.
 
 This is intended to be used to support completion, and shouldn't
 be considered an exhaustive list."
   (read (scrim--redirect-result-from-process
          (scrim-proc)
-         "#?(:clj (->> (all-ns) (map ns-name) (map name)) :cljs nil)")))
+         (format "#?(:clj (->> (all-ns) (map ns-name) (map name)) :cljs '%s)"
+                 cljs-default-namespaces))))
 
 (defun scrim--repl-get-all-namespaced-symbols ()
   "Query the REPL for a list of all namespaced symbols.
 
-Returns nil in cljs, because cljs doesn't have `all-ns'.
+In cljs, this only returns results for namespaces in
+`cljs-default-namespaces', because cljs doesn't have `all-ns'.
 
 This is intended to be used to support completion, and shouldn't
 be considered an exhaustive list."
-  (read (scrim--redirect-result-from-process
-         (scrim-proc)
-         "#?(:clj
+  (scrim--redirect-result-from-process
+   (scrim-proc)
+   (format "#?(:clj
  (->> (all-ns)
      (mapcat (comp vals ns-interns))
      (map meta)
-     (map #(str (:ns %) \"/\" (:name %))))
- :cljs nil)")))
+     (map #(str (:ns %%) \"/\" (:name %%))))
+ :cljs (->> (list %s)
+     (mapcat vals)
+     (map meta)
+     (map #(str (:ns %%) \"/\" (:name %%)))))"
+           ;; In cljs, the argument to `ns-interns' must be quoted, so
+           ;; we have to wrap each ns individually here.
+           (string-join
+            (mapcar (lambda (ns) (format "(ns-interns '%s)" ns))
+                    cljs-default-namespaces)
+            " "))))
 
 (defun scrim--repl-get-all-symbols-in-current-ns ()
   "Query the REPL for a list of all symbols that MAY BE in the ns
-that corresponds to the current buffer. The list will simple
-symbols that are interned or refered, all aliased symbols that
-could be in the current ns, and imports.
+that corresponds to the current buffer. The list will include
+simple symbols that are interned or refered, all aliased symbols
+that could be in the current ns, and imports.
 
 Note that the symbols may or may not actually appear in the
 buffer/namespace. We're just looking at what is possible given
