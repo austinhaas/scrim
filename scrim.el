@@ -557,13 +557,18 @@ string."
             "(in-ns '%s)"
             "Namespace not found")
 
-;; TODO: use completion
 (scrim--cmd scrim-send-arglists
             "Send (:arglists (meta (resolve ns))) to the REPL."
             'scrim-current-function-symbol
             (lambda (default-symbol)
-              (read-string (scrim--prompt "arglists for function" default-symbol)
-                           nil nil default-symbol))
+              (completing-read (scrim--prompt "arglists for function" default-symbol)
+                               (completion-table-dynamic
+                                (lambda (s)
+                                  (append (scrim--repl-get-all-symbols-in-current-ns)
+                                          (scrim--repl-get-all-namespaced-symbols)))
+                                t)
+                               nil nil nil nil
+                               default-symbol))
             "(:arglists (meta (resolve '%s)))"
             "No function near point")
 
