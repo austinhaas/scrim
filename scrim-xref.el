@@ -9,7 +9,7 @@
 
 ;;; Commentary:
 
-;;
+;; xref support for scrim.
 
 ;;; License:
 
@@ -131,7 +131,7 @@ before returning an xref."
            (xref-make (prin1-to-string symbol)
                       (scrim--xref-make-archive-location archive file line column))))))
 
-;;; backend implementation
+;;; Backend implementation
 
 (cl-defmethod xref-backend-identifier-at-point ((_backend (eql scrim)))
   ;; May return simple or namespaced symbols, and the namespace could
@@ -141,7 +141,6 @@ before returning an xref."
 (cl-defmethod xref-backend-identifier-completion-table ((_backend (eql scrim)))
   (scrim--repl-get-all-namespaced-symbols))
 
-;; Doesn't work in cljs, because we can't get source file locations.
 (cl-defmethod xref-backend-definitions ((_backend (eql scrim)) identifier)
   ;; TODO: Return all generic method implementations for
   ;; identifier. The tricky thing about this is that we are currently
@@ -163,9 +162,7 @@ before returning an xref."
                               (list xref)))))
 
 (cl-defmethod xref-backend-references ((_backend (eql scrim)) identifier)
-  ;; Doesn't find symbols in jars, even if they are already extracted into
-  ;; buffers, because the location type for xref-match-item is
-  ;; xref-file-location. TODO: See if that changed in Emacs 29.
+  ;; TODO: Implement support for finding references in jars.
   (or (mapcan (lambda (x)
                 (let* ((file (car x))
                        (file (when (string-prefix-p "file:" file)
