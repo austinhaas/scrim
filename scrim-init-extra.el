@@ -14,9 +14,6 @@
 ;;   t)
 ;; (add-hook 'scrim-mode-hook 'enable-paredit-mode) ;; Not working, because it binds C-d, which scrim-mode uses to quit.
 
-(load-file "~/.emacs.d/site-lisp/third-party/scrim/scrim-db.el")
-(load-file "~/.emacs.d/site-lisp/third-party/scrim/scrim-xref.el")
-
 (defun my-scrim-output-filter (s)
   "A function to run each time the scrim REPL buffer receives
 output from the Java process."
@@ -32,14 +29,23 @@ output from the Java process."
   (when (string-match scrim-prompt-regexp s) ;; Wait for the prompt.
     (message "%s" (scrim-last-output))))
 
+;; Adds support for constructing and querying a database of metadata
+;; in the running Clojure process. This can be used for eldoc, for
+;; example.
+(load-file "~/.emacs.d/site-lisp/third-party/scrim/scrim-db.el")
+
 (defun init-scrim-mode ()
-  "My major mode customizations."
+  "Scrim major mode customizations."
+
+  ;; Call `my-scrim-output-filter' whenever the REPL buffer receives
+  ;; input from the connected Clojure process.
   (add-hook 'comint-output-filter-functions #'my-scrim-output-filter nil t)
 
-  ;; eldoc currently works for symbols in clojure.core and fully-qualified
-  ;; symbols, but nothing else because it doesn't know which ns it is in.
-  ;; Even if we knew the current ns, the repl buffer has input from many
-  ;; namespaces that might not be current.
+  ;; In the REPL buffer (i.e., where the scrim major mode is
+  ;; activated), eldoc currently works for symbols in clojure.core and
+  ;; fully-qualified symbols, but nothing else because it doesn't know
+  ;; which ns it is in.  Even if we knew the current ns, the repl
+  ;; buffer has input from many namespaces that might not be current.
   (setq-local eldoc-documentation-function 'scrim--db-eldoc-function)
   )
 
@@ -49,12 +55,19 @@ output from the Java process."
   (let* ((sym (scrim-symbol-at-point))
          (start (beginning-of-thing 'symbol))
          (end (end-of-thing 'symbol))
-         (collection (completion-table-with-cache #'scrim--repl-completion-table))
+         (collection (completion-table-with-cache (lambda (s)
+                                                    (append (scrim--repl-get-all-namespaces)
+                                                            (scrim--repl-get-all-symbols-in-current-ns)
+                                                            (scrim--repl-get-all-namespaced-symbols)))))
          (props nil))
     (cons start (cons end (cons collection props)))))
 
+;; Adds support for xref, which includes features like jumping to a
+;; symbol's source definition.
+(load-file "~/.emacs.d/site-lisp/third-party/scrim/scrim-xref.el")
+
 (defun init-scrim-minor-mode ()
-  "My minor mode customizations."
+  "Scrim minor mode customizations."
   (setq-local eldoc-documentation-function 'scrim--db-eldoc-function)
   (add-hook 'completion-at-point-functions #'scrim--completion-at-point nil t)
   (add-hook 'xref-backend-functions #'scrim--xref-backend nil t)
