@@ -70,23 +70,7 @@ Please create an issue here: https://github.com/austinhaas/scrim/issues
 
 ## Debugging
 
-### Launch a socket server
-
-
-
-### Connect to it from Emacs
-
-
-### Test without Emacs and Scrim
-
-```
-telnet localhost 5555
-```
-
-### View all communication between Scrim and the Java process
-```
-sudo ngrep -d any port 5555
-```
+See README files in sample projects.
 
 ## Credit
 
