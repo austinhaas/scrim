@@ -421,8 +421,7 @@ process."
       (format "%s (default %s): " prompt default)
     (format "%s: " prompt)))
 
-;;------------------------------------------------------------------------------
-;; REPL-based completion
+;;; REPL-based completion
 
 (defvar cljs-default-namespaces (list "cljs.core"
                                       "cljs.pprint"
@@ -620,8 +619,6 @@ This is intended to be used in an implementation of
                      (file    (scrim--repl-get-path-to-namespace-source-file ns)))
                 (list file strings)))
             xs)))
-
-;;------------------------------------------------------------------------------
 
 
 ;;;; Commands that build common Clojure expressions, usually based on symbols
