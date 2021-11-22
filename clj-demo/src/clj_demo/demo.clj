@@ -43,7 +43,6 @@
   [x]
   (inc x))
 
-(meta (find-ns 'clojure.core))
 ;; Move point inside the following sexp.
 
 ;; C-c C-d d <RET> - show documentation
@@ -84,8 +83,3 @@
 (clj-demo.other/foo)
 
 other/bar
-
-(meta (resolve 'othe/bar))
-(meta (resolve 'clj-demo.demo/add-1))
-
-(ns-name (first (all-ns)))
