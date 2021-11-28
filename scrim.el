@@ -941,7 +941,7 @@ string."
 ;;;; Starting
 
 ;;;###autoload
-(defun scrim (program)
+(defun scrim (program &rest args)
   "Launch a Scrim REPL buffer, running PROGRAM.
 
 PROGRAM should be one of the following:
@@ -956,7 +956,8 @@ tools. \"lein repl\" will not work, for instance, because it uses
 nrepl, which this library does not support. A workaround is to
 launch a process with a socket server, outside of Emacs, and
 connect to it via `scrim-connect'."
-  (interactive (list (read-string (scrim--prompt "program" "clojure") nil nil "clojure")))
+  (interactive (cons (read-string (scrim--prompt "program" "clojure") nil nil "clojure")
+                     (split-string (read-string (scrim--prompt "args" nil) nil nil ""))))
   (if (get-buffer-process scrim--buffer-name)
       (user-error "Already connected.")
     (message "Starting a Clojure REPL...")
@@ -966,7 +967,7 @@ connect to it via `scrim-connect'."
           ;; expressions longer than 1024 bytes cannot be sent to the subprocess.
           (process-connection-type nil))
       (display-buffer (get-buffer-create scrim--buffer-name))
-      (make-comint-in-buffer "scrim" scrim--buffer-name program)
+      (apply #'make-comint-in-buffer "scrim" scrim--buffer-name program nil args)
       (save-excursion
         (set-buffer scrim--buffer-name)
         (scrim-mode)))
