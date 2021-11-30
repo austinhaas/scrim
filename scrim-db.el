@@ -294,7 +294,9 @@ This is intended to be used in an implementation of
   (when (not (nth 4 (syntax-ppss)))    ; inside a comment?
     (when-let ((sym (or (scrim-current-function-symbol)
                         (scrim-symbol-at-point))))
-      (let* ((ns (clojure-find-ns))
+      (let* ((ns (if (string-equal sym "ns")
+                     "clojure.core"
+                     (clojure-find-ns)))
              (alist (scrim--db-lookup-symbol ns sym)))
         (when alist
           (if-let ((arglist (scrim--db-get alist "arglists")))
