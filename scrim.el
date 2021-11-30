@@ -416,11 +416,6 @@ process."
 ;; Emacs as a string. The data structures are compatible with Elisp, so they can
 ;; be read into the Elisp process.
 
-(defun scrim--prompt (prompt default)
-  (if default
-      (format "%s (default %s): " prompt default)
-    (format "%s: " prompt)))
-
 ;;; REPL-based completion
 
 (defvar cljs-default-namespaces (list "cljs.core"
@@ -685,7 +680,7 @@ string."
             "Send (require ns) to the REPL."
             'clojure-find-ns
             (lambda (default-ns)
-              (read-string (scrim--prompt "require ns" "default-ns")
+              (read-string (format-prompt "require ns" "default-ns")
                            nil nil default-ns))
             "(require '%s)"
             "Namespace not found")
@@ -694,7 +689,7 @@ string."
             "Send (in-ns ns) to the REPL."
             'clojure-find-ns
             (lambda (default-ns)
-              (completing-read (scrim--prompt "in ns" default-ns)
+              (completing-read (format-prompt "in ns" default-ns)
                                (completion-table-with-cache
                                 (lambda (s)
                                   (scrim--repl-get-all-namespaces)))
@@ -707,7 +702,7 @@ string."
             "Send (:arglists (meta (resolve ns))) to the REPL."
             'scrim-current-function-symbol
             (lambda (default-symbol)
-              (completing-read (scrim--prompt "arglists for function" default-symbol)
+              (completing-read (format-prompt "arglists for function" default-symbol)
                                (completion-table-dynamic
                                 (lambda (s)
                                   (append (scrim--repl-get-all-symbols-in-current-ns)
@@ -722,7 +717,7 @@ string."
             "Send (macroexpand form) to the REPL."
             'scrim-last-sexp
             (lambda (form)
-              (read-string (scrim--prompt "macroexpand form" form)
+              (read-string (format-prompt "macroexpand form" form)
                            nil nil form))
             "(macroexpand '%s)"
             "No sexp found")
@@ -731,7 +726,7 @@ string."
             "Send (macroexpand-1 form) to the REPL."
             'scrim-last-sexp
             (lambda (form)
-              (read-string (scrim--prompt "macroexpand-1 form" form)
+              (read-string (format-prompt "macroexpand-1 form" form)
                            nil nil form))
             "(macroexpand-1 '%s)"
             "No sexp found")
@@ -740,7 +735,7 @@ string."
             "Send (clojure.walk/macroexpand-all form) to the REPL."
             'scrim-last-sexp
             (lambda (form)
-              (read-string (scrim--prompt "macroexpand-all form" form)
+              (read-string (format-prompt "macroexpand-all form" form)
                            nil nil form))
             "(clojure.walk/macroexpand-all '%s)"
             "No sexp found")
@@ -767,7 +762,7 @@ string."
             "Send (clojure.repl/doc name) to the REPL."
             'scrim-symbol-at-point
             (lambda (default-symbol)
-              (completing-read (scrim--prompt "name" default-symbol)
+              (completing-read (format-prompt "name" default-symbol)
                                (completion-table-dynamic
                                 (lambda (s)
                                   ;; TODO: Include keywords, for specs.
@@ -783,14 +778,14 @@ string."
 (scrim--cmd scrim-send-find-doc
             "Send (clojure.repl/find-doc re-string-or-pattern) to the REPL."
             nil
-            (lambda (x) (read-string (scrim--prompt "re-string-or-pattern" nil)))
+            (lambda (x) (read-string (format-prompt "re-string-or-pattern" nil)))
             "(clojure.repl/find-doc %s)"
             "No input")
 
 (scrim--cmd scrim-send-source
             "Send (clojure.repl/source n) to the REPL."
             'scrim-symbol-at-point
-            (completing-read (scrim--prompt "symbol" default-symbol)
+            (completing-read (format-prompt "symbol" default-symbol)
                                (completion-table-dynamic
                                 (lambda (s)
                                   (append (scrim--repl-get-all-namespaces)
@@ -806,7 +801,7 @@ string."
             "Send (clojure.repl/dir nsname) to the REPL."
             'clojure-find-ns
             (lambda (default-ns)
-              (completing-read (scrim--prompt "ns" default-ns)
+              (completing-read (format-prompt "ns" default-ns)
                                (completion-table-with-cache
                                 (lambda (s)
                                   (scrim--repl-get-all-namespaces)))
@@ -818,7 +813,7 @@ string."
 (scrim--cmd scrim-send-apropos
             "Send (doseq [v (sort (clojure.repl/apropos str-or-pattern))] (println v)) to the REPL."
             nil
-            (lambda (x) (read-string (scrim--prompt "str-or-pattern" nil)))
+            (lambda (x) (read-string (format-prompt "str-or-pattern" nil)))
             "(doseq [v (sort (clojure.repl/apropos %s))] (println v))"
             "No input")
 
@@ -839,7 +834,7 @@ string."
 (scrim--cmd scrim-send-javadoc
             "Send (clojure.java.javadoc/javadoc class-or-object) to the REPL."
             nil
-            (lambda (x) (read-string (scrim--prompt "class-or-object" nil)))
+            (lambda (x) (read-string (format-prompt "class-or-object" nil)))
             "(clojure.java.javadoc/javadoc %s)"
             "No input")
 
@@ -956,8 +951,8 @@ tools. \"lein repl\" will not work, for instance, because it uses
 nrepl, which this library does not support. A workaround is to
 launch a process with a socket server, outside of Emacs, and
 connect to it via `scrim-connect'."
-  (interactive (cons (read-string (scrim--prompt "program" "clojure") nil nil "clojure")
-                     (split-string (read-string (scrim--prompt "args" nil) nil nil ""))))
+  (interactive (cons (read-string (format-prompt "program" "clojure") nil nil "clojure")
+                     (split-string (read-string (format-prompt "args" nil) nil nil ""))))
   (if (get-buffer-process scrim--buffer-name)
       (user-error "Already connected.")
     (message "Starting a Clojure REPL...")
@@ -1004,7 +999,7 @@ clj -J-Dclojure.server.myrepl='{:port 5555,:accept,clojure.core.server/repl}'
 Then connect (in Emacs) with:
 
 m-x scrim-connect RET localhost RET 5555 RET"
-  (interactive (list (read-string (scrim--prompt "host" scrim-default-host)
+  (interactive (list (read-string (format-prompt "host" scrim-default-host)
                                   nil nil scrim-default-host)
                      (read-number "port: "
                                   scrim-default-port)))
