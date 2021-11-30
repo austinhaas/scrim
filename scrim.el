@@ -309,6 +309,10 @@ buffer and then sending it from there as if a user typed it in."
             (let ((e (point)))
               (comint-goto-process-mark)
               (let ((b (line-end-position)))
+                ;; Need to send the input before adding the overlay,
+                ;; because `comint-send-input' removes overlays (and
+                ;; text properties) since Emacs commit 4268d9a2b6b.
+                (comint-send-input)
                 (let ((ov (make-overlay b e)))
                   (overlay-put ov 'scrim t)
                   (overlay-put ov 'invisible 'scrim)
@@ -317,7 +321,6 @@ buffer and then sending it from there as if a user typed it in."
                   ;; TODO: Lookup keybinding dynamically. See `substitute-command-keys'.
                   ;;(overlay-put ov 'help-echo "\\[scrim--indent-line] to expand input.")
                   ))))
-          (comint-send-input)
           (unless end? (goto-char start))))
     (user-error "Not connected.")))
 
