@@ -951,6 +951,8 @@ string."
   (setq-local comint-scroll-to-bottom-on-input t)
   (setq-local mode-line-process '(":%s"))
   (setq-local comint-prompt-read-only scrim-prompt-read-only)
+  ;; Keep original text properties.
+  (setq-local comint-highlight-input nil)
   (setq-local indent-line-function #'scrim--indent-line)
   (setq-local help-at-pt-display-when-idle t)
   (add-to-invisibility-spec '(scrim . t)))
