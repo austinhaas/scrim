@@ -296,32 +296,40 @@ property of an overlay."
 (defun scrim--send-indirectly (process string)
   "Send STRING to PROCESS by first writing STRING to the process
 buffer and then sending it from there as if a user typed it in."
+  ;; The management of point is derived from
+  ;; https://emacs.stackexchange.com/a/12346 and `append-to-buffer'.
   (if process
-      (with-current-buffer (process-buffer process)
-        ;; If point is at the end of the buffer, move it forward, otherwise leave it. This doesn't work
-        ;; if point is within the previous output. I think comint adjusts point when the response is
-        ;; received. This is supposed to be DWIM, but might be too magical.
-        (let ((start (point))
-              (end?  (= (point) (point-max))))
-          (comint-goto-process-mark)
-          (insert string)
-          (save-excursion
-            (let ((e (point)))
+      (let* ((buffer (process-buffer process))
+             (windows (get-buffer-window-list buffer t t)))
+        (save-excursion
+          (with-current-buffer buffer
+            ;; If point is at the end of the buffer, move it forward, otherwise leave it. This doesn't work
+            ;; if point is within the previous output. I think comint adjusts point when the response is
+            ;; received. This is supposed to be DWIM, but might be too magical.
+            (let ((point (point))
+                  (point-at-max-p (= (point) (point-max))))
               (comint-goto-process-mark)
-              (let ((b (line-end-position)))
-                ;; Need to send the input before adding the overlay,
-                ;; because `comint-send-input' removes overlays (and
-                ;; text properties) since Emacs commit 4268d9a2b6b.
-                (comint-send-input)
-                (let ((ov (make-overlay b e)))
-                  (overlay-put ov 'scrim t)
-                  (overlay-put ov 'invisible 'scrim)
-                  (overlay-put ov 'isearch-open-invisible 'scrim--isearch-show)
-                  (overlay-put ov 'isearch-open-invisible-temporary 'scrim--isearch-show-temporary)
-                  ;; TODO: Lookup keybinding dynamically. See `substitute-command-keys'.
-                  ;;(overlay-put ov 'help-echo "\\[scrim--indent-line] to expand input.")
-                  ))))
-          (unless end? (goto-char start))))
+              (insert string)
+              (let ((e (point)))
+                (comint-goto-process-mark)
+                (let ((b (line-end-position)))
+                  ;; Need to send the input before adding the overlay,
+                  ;; because `comint-send-input' removes overlays (and
+                  ;; text properties) since Emacs commit 4268d9a2b6b.
+                  (comint-send-input)
+                  (let ((ov (make-overlay b e)))
+                    (overlay-put ov 'scrim t)
+                    (overlay-put ov 'invisible 'scrim)
+                    (overlay-put ov 'isearch-open-invisible 'scrim--isearch-show)
+                    (overlay-put ov 'isearch-open-invisible-temporary 'scrim--isearch-show-temporary)
+                    ;; TODO: Lookup keybinding dynamically. See `substitute-command-keys'.
+                    ;;(overlay-put ov 'help-echo "\\[scrim--indent-line] to expand input.")
+                    )))
+              (unless point-at-max-p
+                (goto-char point))
+              (dolist (window windows)
+                (when (= (window-point window) point)
+                  (set-window-point window (point))))))))
     (user-error "Not connected.")))
 
 (defun scrim--send-directly (process string)
