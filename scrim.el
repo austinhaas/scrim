@@ -275,23 +275,41 @@ This function is meant to be used as the `isearch-open-invisible-temporary'
 property of an overlay."
   (overlay-put ov 'invisible (and hide-p 'scrim)))
 
-(defun scrim--overlay-at (position)
-  "Return scrim overlay at POSITION, or nil if none to be found."
+(defun scrim--invisible-overlay-at (position)
+  "Return invisible scrim overlay at POSITION, or nil if none to be found."
   ;; Implementation based on `hs-overlay-at'.
-  (let ((overlays (overlays-at position))
-        ov found)
-    (while (and (not found) (setq ov (car overlays)))
-      (setq found (and (overlay-get ov 'scrim) ov)
-            overlays (cdr overlays)))
-    found))
+  (seq-find (lambda (ov) (and (overlay-get ov 'scrim)
+                              (overlay-get ov 'invisible)))
+            (overlays-at position)))
 
 (defun scrim-show-repl-input-at-point ()
   (interactive)
   ;; Very simplified version of `hs-show-block'. See that implementation, if
   ;; more is needed.
-  (when-let ((ov (scrim--overlay-at (line-end-position))))
+  (when-let ((ov (or (scrim--invisible-overlay-at (line-end-position))
+                     ;; Based on `help-at-pt-string'.
+                     (save-excursion
+                       (goto-char (line-end-position))
+                       (backward-char)
+                       (scrim--invisible-overlay-at (point))))))
     (delete-overlay ov)
     (message "Showing input... done")))
+
+(defun scrim--add-repl-input-overlay (start end)
+  (save-excursion
+    (goto-char start)
+    ;; One overlay for all of the input.
+    (let ((ov (make-overlay start end)))
+      (overlay-put ov 'scrim t)
+      (overlay-put ov 'evaporate t)
+      (overlay-put ov 'kbd-help "<tab> to expand input"))
+    ;; One overlay to hide everything after the first line.
+    (let ((ov (make-overlay (line-end-position) end)))
+      (overlay-put ov 'scrim t)
+      (overlay-put ov 'evaporate t)
+      (overlay-put ov 'invisible 'scrim)
+      (overlay-put ov 'isearch-open-invisible 'scrim--isearch-show)
+      (overlay-put ov 'isearch-open-invisible-temporary 'scrim--isearch-show-temporary))))
 
 (defun scrim--send-indirectly (process string)
   "Send STRING to PROCESS by first writing STRING to the process
@@ -309,22 +327,15 @@ buffer and then sending it from there as if a user typed it in."
             (let ((point (point))
                   (point-at-max-p (= (point) (point-max))))
               (comint-goto-process-mark)
-              (insert string)
-              (let ((e (point)))
-                (comint-goto-process-mark)
-                (let ((b (line-end-position)))
+              (let ((input-start (point)))
+                (insert string)
+                (let ((input-end (point)))
                   ;; Need to send the input before adding the overlay,
                   ;; because `comint-send-input' removes overlays (and
                   ;; text properties) since Emacs commit 4268d9a2b6b.
                   (comint-send-input)
-                  (let ((ov (make-overlay b e)))
-                    (overlay-put ov 'scrim t)
-                    (overlay-put ov 'invisible 'scrim)
-                    (overlay-put ov 'isearch-open-invisible 'scrim--isearch-show)
-                    (overlay-put ov 'isearch-open-invisible-temporary 'scrim--isearch-show-temporary)
-                    ;; TODO: Lookup keybinding dynamically. See `substitute-command-keys'.
-                    ;;(overlay-put ov 'help-echo "\\[scrim--indent-line] to expand input.")
-                    )))
+                  (put-text-property input-start input-end 'read-only t)
+                  (scrim--add-repl-input-overlay input-start input-end)))
               (unless point-at-max-p
                 (goto-char point))
               (dolist (window windows)
@@ -941,6 +952,7 @@ string."
   (setq-local mode-line-process '(":%s"))
   (setq-local comint-prompt-read-only scrim-prompt-read-only)
   (setq-local indent-line-function #'scrim--indent-line)
+  (setq-local help-at-pt-display-when-idle t)
   (add-to-invisibility-spec '(scrim . t)))
 
 
