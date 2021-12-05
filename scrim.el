@@ -4,7 +4,7 @@
 ;;
 ;; Author: Austin Haas <austin@pettomato.com>
 ;; URL: http://github.com/austinhaas/scrim
-;; Version: 0.0.7-SNAPSHOT
+;; Version: 0.0.7
 
 ;; This file is not part of GNU Emacs.
 
