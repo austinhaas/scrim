@@ -807,7 +807,8 @@ string."
 (scrim--cmd scrim-send-source
             "Send (clojure.repl/source n) to the REPL."
             'scrim-symbol-at-point
-            (completing-read (format-prompt "symbol" default-symbol)
+            (lambda (default-symbol)
+              (completing-read (format-prompt "symbol" default-symbol)
                                (completion-table-dynamic
                                 (lambda (s)
                                   (append (scrim--repl-get-all-namespaces)
@@ -815,7 +816,7 @@ string."
                                           (scrim--repl-get-all-namespaced-symbols)))
                                 t)
                                nil nil nil nil
-                               default-symbol)
+                               default-symbol))
             "(clojure.repl/source %s)"
             "No symbol near point")
 
