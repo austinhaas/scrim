@@ -63,7 +63,9 @@
 
 (defun scrim-symbol-at-point ()
   "Return the symbol at point."
-  (thing-at-point 'symbol t))
+  (when (and (not (nth 3 (syntax-ppss)))  ; Not inside a string.
+             (not (nth 4 (syntax-ppss)))) ; Not inside a comment.
+    (thing-at-point 'symbol t)))
 
 (defun scrim-last-sexp ()
   "Return the sexp before point."
