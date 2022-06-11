@@ -549,7 +549,7 @@ source file location for a namespace in cljs."
                 path
                 (str (#'clojure.core/root-directory (ns-name *ns*)) \\/ path))
          path (.substring path 1)]
-     (str (or (.getResource (clojure.lang.RT/baseLoader) (str path \"__init\" \".class\"))
+     (str (or #_(.getResource (clojure.lang.RT/baseLoader) (str path \"__init\" \".class\"))
               (.getResource (clojure.lang.RT/baseLoader) (str path \".clj\"))
               (.getResource (clojure.lang.RT/baseLoader) (str path \".cljc\")))))
    :cljs
