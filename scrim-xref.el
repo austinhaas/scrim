@@ -134,9 +134,9 @@ before returning an xref."
 ;;; Backend implementation
 
 (cl-defmethod xref-backend-identifier-at-point ((_backend (eql scrim)))
-  ;; May return simple or namespaced symbols, and the namespace could
-  ;; be an alias.
-  (scrim-symbol-at-point))
+  (if-let ((symbol (scrim-symbol-at-point)))
+      (scrim--repl-get-namespaced-symbol symbol)
+    (user-error "No symbol at point.")))
 
 (cl-defmethod xref-backend-identifier-completion-table ((_backend (eql scrim)))
   (scrim--repl-get-all-namespaced-symbols))
@@ -168,7 +168,9 @@ before returning an xref."
                        (file (when (string-prefix-p "file:" file)
                                (string-remove-prefix "file:" file)))
                        (strings (cadr x))
-                       (regexp (regexp-opt strings 'words))) ;; TODO: Why doesn't 'symbols work?
+                       ;; Emacs's special constructs, like `\_<`, can't be used
+                       ;; here because `xref-matches-in-files` uses grep.
+                       (regexp (concat "[[:space:](]" (regexp-opt strings t) "[[:space:])]")))
                   (when file
                     (xref-matches-in-files regexp (list file)))))
               (scrim--repl-get-possible-references identifier))
