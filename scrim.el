@@ -536,6 +536,16 @@ be considered an exhaustive list."
          nil))"
                    ns ns ns ns)))))
 
+(defun scrim--repl-get-namespaced-symbol (symbol)
+  "Returns the namespaced symbol for the given symbol in the
+current namespace."
+  (or (read (scrim--redirect-result-from-process
+             (scrim-proc)
+             (format "(try (when-let [m (meta (resolve '%s))] (str (:ns m) \"/\" (:name m)))
+                       (catch #?(:clj Throwable :cljs :default) e nil))"
+                     symbol)))
+      (error "Could not resolve symbol.")))
+
 (defun scrim--repl-get-path-to-namespace-source-file (ns)
   "Query the REPL for the path to the source file for namespace
 ns.
