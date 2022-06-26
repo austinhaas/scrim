@@ -290,7 +290,7 @@ This is intended to be used in an implementation of
 
 ;;; eldoc
 
-(defun scrim--db-eldoc-function ()
+(defun scrim--db-eldoc-function (callback)
   (when (not (nth 4 (syntax-ppss)))    ; inside a comment?
     (when-let ((sym (or (scrim-current-function-symbol)
                         (scrim-symbol-at-point))))

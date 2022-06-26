@@ -46,21 +46,20 @@ output from the Java process."
   ;; fully-qualified symbols, but nothing else because it doesn't know
   ;; which ns it is in.  Even if we knew the current ns, the repl
   ;; buffer has input from many namespaces that might not be current.
-  (setq-local eldoc-documentation-function 'scrim--db-eldoc-function)
-  )
+  (add-hook 'eldoc-documentation-functions 'scrim--db-eldoc-function nil t))
 
 (add-hook 'scrim-mode-hook #'init-scrim-mode)
 
 (defun scrim--completion-at-point ()
-  (let* ((sym (scrim-symbol-at-point))
-         (start (beginning-of-thing 'symbol))
-         (end (end-of-thing 'symbol))
-         (collection (completion-table-with-cache (lambda (s)
-                                                    (append (scrim--repl-get-all-namespaces)
-                                                            (scrim--repl-get-all-symbols-in-current-ns)
-                                                            (scrim--repl-get-all-namespaced-symbols)))))
-         (props nil))
-    (cons start (cons end (cons collection props)))))
+  (when-let ((sym (scrim-symbol-at-point)))
+    (let* ((start (beginning-of-thing 'symbol))
+           (end (end-of-thing 'symbol))
+           (collection (completion-table-with-cache (lambda (s)
+                                                      (append (scrim--repl-get-all-namespaces)
+                                                              (scrim--repl-get-all-symbols-in-current-ns)
+                                                              (scrim--repl-get-all-namespaced-symbols)))))
+           (props nil))
+      (cons start (cons end (cons collection props))))))
 
 ;; Adds support for xref, which includes features like jumping to a
 ;; symbol's source definition.
@@ -68,9 +67,8 @@ output from the Java process."
 
 (defun init-scrim-minor-mode ()
   "Scrim minor mode customizations."
-  (setq-local eldoc-documentation-function 'scrim--db-eldoc-function)
+  (add-hook 'eldoc-documentation-functions 'scrim--db-eldoc-function nil t)
   (add-hook 'completion-at-point-functions #'scrim--completion-at-point nil t)
-  (add-hook 'xref-backend-functions #'scrim--xref-backend nil t)
-  )
+  (add-hook 'xref-backend-functions #'scrim--xref-backend nil t))
 
 (add-hook 'scrim-minor-mode-hook #'init-scrim-minor-mode)
