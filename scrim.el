@@ -882,6 +882,7 @@ string."
     (define-key map (kbd "C-c C-q") #'scrim-quit)
     (define-key map (kbd "C-c o")   #'scrim-clear-repl-buffer)
     (define-key map (kbd "C-c C-s e") #'scrim-repl-buffer-end)
+    (define-key map (kbd "C-c C-z")   #'scrim-show-or-hide-repl-buffer)
     map))
 
 (defvar scrim-minor-mode-map
