@@ -1,6 +1,6 @@
 ;;; scrim-xref.el --- xref support for scrim       -*- lexical-binding: t; -*-
 
-;; Copyright © 2022 Austin Haas
+;; Copyright © 2023 Austin Haas
 ;;
 ;; Author: Austin Haas <austin@pettomato.com>
 ;; URL: http://github.com/austinhaas/scrim
