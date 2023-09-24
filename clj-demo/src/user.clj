@@ -1,11 +1,11 @@
 (ns user
   (:require
-   [clojure.pprint :refer [cl-format]]
-   [clojure.core.server :refer [prepl]]
    [cljs.repl :as repl]
    [cljs.repl.browser :as browser]
    [cljs.repl.node :as node]
-   [clojure.edn :as edn]))
+   [clojure.core.server :refer [prepl]]
+   [clojure.edn :as edn]
+   [clojure.pprint :refer [cl-format]]))
 
 (def compile-opts-files ["config/compile-opts-dev.edn"])
 

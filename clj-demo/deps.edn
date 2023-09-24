@@ -1,9 +1,5 @@
-{:deps    {org.clojure/clojure       {:mvn/version "1.10.3"}
-           org.clojure/clojurescript {:mvn/version "1.10.866"}
-           pettomato/devs            {:local/root    "lib/devs"
-                                      :deps/manifest :deps}
-           pettomato/lib             {:local/root    "lib/lib"
-                                      :deps/manifest :deps}}
+{:deps    {org.clojure/clojure       {:mvn/version "1.11.1"}
+           org.clojure/clojurescript {:mvn/version "1.11.60"}}
  :aliases {:test                     {:extra-paths ["test"]}
            :clj-runner               {:extra-deps {com.cognitect/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
                                                                               :sha     "209b64504cb3bd3b99ecfec7937b358a879f55c1"}}
@@ -19,8 +15,8 @@
            :clj-prepl-server         {:exec-fn   clojure.core.server/start-server
                                       :exec-args {:name          "clj-prepl-server"
                                                   :port          5555
-                                                  ;;:accept        clojure.core.server/io-prepl
-                                                  :accept        user/my-io-prepl
+                                                  :accept        clojure.core.server/io-prepl
+                                                  ;;:accept        user/my-io-prepl
                                                   :server-daemon false}}
            :cljs-node-repl-server    {:exec-fn   clojure.core.server/start-server
                                       :exec-args {:name          "cljs-node-repl-server"

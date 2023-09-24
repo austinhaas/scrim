@@ -1,8 +1,6 @@
-# A guide to developing with Clojure, Emacs, and Scrim
+# A demo project for developing with Clojure, Emacs, and Scrim
 
-How to connect all of the pieces and test that everything works.
-
-This is what I consider to be the base of an ideal Clojure development environment. It is minimal, but powerful.
+This will show you how to connect all of the pieces and test that everything works.
 
 ### Prerequisites
 
@@ -10,29 +8,24 @@ This is what I consider to be the base of an ideal Clojure development environme
 * [Emacs](https://www.gnu.org/software/emacs/)
 * [Scrim](https://github.com/austinhaas/scrim)
 
-### Step 1: Open a terminal and navigate to the project root
-
-(where this file is located)
-
+### Step 1: Open a terminal and navigate to where scrim was installed.
 ```
-cd scrim-install-dir/clj-demo/
+cd <scrim-install-dir>/clj-demo/
 ```
 
-### Step 2: Start a clojure process
-
-This process will start a socket server.
+### Step 2: (Optional) Start a Clojure REPL socket server.
 ```
-./run-dev.sh
+make clj-repl
 ```
 
-This shell script just wraps `clj` with a few options. [See the contents of that file for more info.](run-dev.sh)
+To see what this command does, run `make -n clj-repl` or [read the makefile](makefile).
 
 ### Step 3: Open the Clojure file in Emacs and follow instructions there.
 ```
-C-x C-f scrim-install-dir/clj-demo/src/clj_demo/core.clj RET
+C-x C-f <scrim-install-dir>/clj-demo/src/clj_demo/demo.clj RET
 ```
 
-## More useful commands
+## Debugging (when using the socket server)
 
 ### Test without Emacs and Scrim
 

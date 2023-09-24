@@ -2,7 +2,7 @@
 
 An Emacs package for Clojure REPL interaction.
 
-A major mode for connection to a Clojure REPL process in a buffer.
+A major mode for a Clojure REPL process in a buffer.
 
 A minor mode for buffers containing Clojure(Script) code.
 
@@ -40,73 +40,17 @@ Alpha
 ### Clone the repository
 
 ```sh
-cd ~/.emacs.d/site-lisp  # or wherever you keep locally installed emacs packages
+cd ~/.emacs.d/site-lisp  # or wherever you keep locally installed Emacs packages
 git clone git@github.com:austinhaas/scrim.git
 ```
-### Update your .emacs (customize to your preference)
+### Update your .emacs
 
-```
-;;;; scrim
+I've included a couple init files that you can use as reference. This is what I
+use to initialize scrim. Take what you want and modify as necessary.
 
-(add-to-list 'load-path "~/.emacs.d/site-lisp/third-party/scrim/")
-(require 'scrim)
+* [A minimal configuration](scrim-init-minimal.el)
+* [Extra](scrim-init-extra.el) (experimental)
 
-;;; Major mode hooks
-
-(add-hook 'scrim-mode-hook 'rainbow-delimiters-mode) ;; Optional
-(add-hook 'scrim-mode-hook 'clojure-mode-variables)
-(add-hook 'scrim-mode-hook 'clojure-font-lock-setup)
-
-;;; Minor mode hooks
-
-;; If you already use clojure-mode.
-(add-hook 'clojure-mode-hook 'scrim-minor-mode)
-;; If you don't use clojure-mode.
-;;(add-to-list 'auto-mode-alist '("\\.clj\\|\\.cljc\\|\\.cljs\\|\\.edn$" . scrim-minor-mode))
-;;(add-hook 'scrim-mode-hook 'eldoc-mode) ;; Not implemented.
-
-;;; Extras
-
-;; Add the hideshow minor mode to the scrim REPL buffer.
-;; This has to run after clojure-mode-variables, hence the 'append argument.
-(add-hook 'scrim-mode-hook 'hs-minor-mode 'append)
-
-(defun my-scrim-hide-last-input ()
-  "Collapse the last input in the REPL to a single line, using
-hideshow. You can expand it using the normal hideshow commands."
-  (save-excursion
-    (with-current-buffer scrim--buffer-name
-      (goto-char comint-last-input-end)
-      (backward-sexp)
-      (forward-char)
-      (hs-hide-block))))
-
-(defun my-scrim-echo-output ()
-  "Display the last output in the echo area."
-  (message "%s" (scrim-last-output)))
-
-(defun my-scrim-output-filter (s)
-  "A function to run each time the scrim REPL buffer receives
-output from the Java process."
-
-  ;; There may be a better place for this.
-  (my-scrim-hide-last-input)
-
-  ;; This function may be called multiple times; each call containing a portion
-  ;; of the complete output. For example, after receiving the user's input, this
-  ;; function may be called with a blank string, then again with the result, and
-  ;; then again with a prompt. The result value may also be split across
-  ;; multiple calls. In order to display the complete result, the value is read
-  ;; from the REPL buffer, instead of using the string argument to this
-  ;; function.
-  (my-scrim-echo-output))
-
-(defun init-scrim-mode ()
-  "My customizations."
-  (add-hook 'comint-output-filter-functions 'my-scrim-output-filter nil t))
-
-(add-hook 'scrim-mode-hook 'init-scrim-mode)
-```
 ## Usage
 
 The keybindings can be displayed by either using `C-h m` in a Scrim-enabled buffer and then
@@ -122,7 +66,11 @@ steps required to get to a working interactive development environment.
 
 ## Bugs, feedback, etc.
 
-Please open a ticket in github.
+Please create an issue here: https://github.com/austinhaas/scrim/issues
+
+## Debugging
+
+See README files in sample projects.
 
 ## Credit
 
@@ -135,6 +83,6 @@ Similar projects I've used and referenced:
 
 ## License
 
-Copyright (c) 2020 Austin Haas.
+Copyright (c) 2021 Austin Haas.
 
 Licensed under the [GNU General Public License, version 3](COPYING).
