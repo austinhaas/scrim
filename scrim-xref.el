@@ -168,9 +168,18 @@ before returning an xref."
                        (file (when (string-prefix-p "file:" file)
                                (string-remove-prefix "file:" file)))
                        (strings (cadr x))
-                       ;; Emacs's special constructs, like `\_<`, can't be used
-                       ;; here because `xref-matches-in-files` uses grep.
-                       (regexp (concat "[[:space:](]" (regexp-opt strings t) "[[:space:])]")))
+                       ;; Note that `xref-matches-in-files` uses `grep -E`, not elisp,
+                       ;; so Emacs syntax and regexp functions cannot be used. Also,
+                       ;; it expects to be passed basic regexp syntax, and then it
+                       ;; converts it to extended grep syntax.
+                       (strings (mapcar (lambda (s)
+                                          (concat "\\("
+                                                  (replace-regexp-in-string "?\\|*\\|+\\|\\."
+                                                                            (lambda (x) (concat "\\" x))
+                                                                            s t t)
+                                                  "\\)"))
+                                        strings))
+                       (regexp (string-join strings "|")))
                   (when file
                     (xref-matches-in-files regexp (list file)))))
               (scrim--repl-get-possible-references identifier))
