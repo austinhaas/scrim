@@ -173,7 +173,7 @@ before returning an xref."
                        ;; it expects to be passed basic regexp syntax, and then it
                        ;; converts it to extended grep syntax.
                        (strings (mapcar (lambda (s)
-                                          (concat "\\("
+                                          (concat "\\(\\(#'\\)?"
                                                   (replace-regexp-in-string "?\\|*\\|+\\|\\."
                                                                             (lambda (x) (concat "\\" x))
                                                                             s t t)
