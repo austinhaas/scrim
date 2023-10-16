@@ -179,7 +179,8 @@ before returning an xref."
                                                                             s t t)
                                                   "\\)"))
                                         strings))
-                       (regexp (string-join strings "|")))
+                       (regexp (string-join strings "|"))
+                       (regexp (concat "\\([\s([{]\\|^\\)" regexp "\\([\s)}]\\|]\\|$\\)")))
                   (when file
                     (xref-matches-in-files regexp (list file)))))
               (scrim--repl-get-possible-references identifier))
