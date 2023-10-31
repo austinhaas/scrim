@@ -610,10 +610,9 @@ This is intended to be used in an implementation of
 
   ;;   Doesn't find symbols evaluated in the REPL.
 
-  (let* ((namespaces (scrim--repl-get-all-namespaces))
-         (xs         (read (scrim--redirect-result-from-process
-                            (scrim-proc)
-                            (format "#?(:clj
+  (let ((xs (read (scrim--redirect-result-from-process
+                   (scrim-proc)
+                   (format "#?(:clj
    (let [symbol-in     '%s
          symbol-ns     (namespace symbol-in)
          symbol-name   (name symbol-in)
