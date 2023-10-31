@@ -83,3 +83,7 @@
 (clj-demo.other/foo)
 
 other/bar
+
+{:a 1
+ :b 2
+ :c 3}

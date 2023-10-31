@@ -204,7 +204,7 @@ Both args are strings."
                     (scrim--db-get ns "interns")))
           scrim--db))
 
-(defun scrim--db-completion-table (s)
+(defun scrim--db-completion-table (_)
   (let* ((ns (clojure-find-ns))
          (ns-alist (scrim--db-get scrim--db ns))
          (interns (scrim--db-get ns-alist "interns"))
@@ -290,7 +290,7 @@ This is intended to be used in an implementation of
 
 ;;; eldoc
 
-(defun scrim--db-eldoc-function (callback)
+(defun scrim--db-eldoc-function (_callback)
   (when (not (nth 4 (syntax-ppss)))    ; inside a comment?
     (when-let ((sym (or (scrim-current-function-symbol)
                         (scrim-symbol-at-point))))

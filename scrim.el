@@ -724,7 +724,7 @@ string."
             (lambda (default-ns)
               (completing-read (format-prompt "in ns" default-ns)
                                (completion-table-with-cache
-                                (lambda (s)
+                                (lambda (_)
                                   (scrim--repl-get-all-namespaces)))
                                nil nil nil nil
                                default-ns))
@@ -737,7 +737,7 @@ string."
             (lambda (default-symbol)
               (completing-read (format-prompt "arglists for function" default-symbol)
                                (completion-table-dynamic
-                                (lambda (s)
+                                (lambda (_)
                                   (append (scrim--repl-get-all-symbols-in-current-ns)
                                           (scrim--repl-get-all-namespaced-symbols)))
                                 t)
@@ -797,7 +797,7 @@ string."
             (lambda (default-symbol)
               (completing-read (format-prompt "name" default-symbol)
                                (completion-table-dynamic
-                                (lambda (s)
+                                (lambda (_)
                                   ;; TODO: Include keywords, for specs.
                                   (append (scrim--repl-get-all-namespaces)
                                           (scrim--repl-get-all-symbols-in-current-ns)
@@ -811,7 +811,7 @@ string."
 (scrim--cmd scrim-send-find-doc
             "Send (clojure.repl/find-doc re-string-or-pattern) to the REPL."
             nil
-            (lambda (x) (read-string (format-prompt "re-string-or-pattern" nil)))
+            (lambda (_) (read-string (format-prompt "re-string-or-pattern" nil)))
             "(clojure.repl/find-doc %s)"
             "No input")
 
@@ -821,7 +821,7 @@ string."
             (lambda (default-symbol)
               (completing-read (format-prompt "symbol" default-symbol)
                                (completion-table-dynamic
-                                (lambda (s)
+                                (lambda (_)
                                   (append (scrim--repl-get-all-namespaces)
                                           (scrim--repl-get-all-symbols-in-current-ns)
                                           (scrim--repl-get-all-namespaced-symbols)))
@@ -837,7 +837,7 @@ string."
             (lambda (default-ns)
               (completing-read (format-prompt "ns" default-ns)
                                (completion-table-with-cache
-                                (lambda (s)
+                                (lambda (_)
                                   (scrim--repl-get-all-namespaces)))
                                nil nil nil nil
                                default-ns))
@@ -847,7 +847,7 @@ string."
 (scrim--cmd scrim-send-apropos
             "Send (doseq [v (sort (clojure.repl/apropos str-or-pattern))] (println v)) to the REPL."
             nil
-            (lambda (x) (read-string (format-prompt "str-or-pattern" nil)))
+            (lambda (_) (read-string (format-prompt "str-or-pattern" nil)))
             "(doseq [v (sort (clojure.repl/apropos %s))] (println v))"
             "No input")
 
@@ -868,7 +868,7 @@ string."
 (scrim--cmd scrim-send-javadoc
             "Send (clojure.java.javadoc/javadoc class-or-object) to the REPL."
             nil
-            (lambda (x) (read-string (format-prompt "class-or-object" nil)))
+            (lambda (_) (read-string (format-prompt "class-or-object" nil)))
             "(clojure.java.javadoc/javadoc %s)"
             "No input")
 
