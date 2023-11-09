@@ -1037,8 +1037,7 @@ connect to it via `scrim-connect'."
           (process-connection-type nil))
       (display-buffer (get-buffer-create scrim--buffer-name))
       (apply #'make-comint-in-buffer "scrim" scrim--buffer-name program nil args)
-      (save-excursion
-        (set-buffer scrim--buffer-name)
+      (with-current-buffer scrim--buffer-name
         (scrim-mode)))
     (message "Starting a Clojure REPL...done")))
 
