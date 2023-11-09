@@ -160,6 +160,17 @@ point."
   (or (scrim-top-level-sexp)
       (scrim-last-sexp)))
 
+(defun scrim-top-level-or-last-test-sym ()
+  "Return the symbol name of the test fn that is around point, or
+before point."
+  (save-excursion
+    (beginning-of-defun)
+    (forward-char)
+    (when (eq 'deftest (symbol-at-point))
+      (forward-sexp)
+      (forward-sexp)
+      (thing-at-point 'symbol t))))
+
 (defun scrim-sexps-in-region (start end)
   "Return a list of all sexps in region."
   (save-restriction
@@ -872,6 +883,28 @@ string."
             "(clojure.java.javadoc/javadoc %s)"
             "No input")
 
+;;; testing
+
+(scrim--cmd scrim-send-run-test
+            "Send (clojure.test/run-test test-name-arount-point) to the REPL."
+            'scrim-top-level-or-last-test-sym
+            (lambda (default-symbol)
+              (completing-read (format-prompt "test-symbol" default-symbol)
+                               (completion-table-dynamic
+                                (lambda (s)
+                                  (append (scrim--repl-get-all-symbols-in-current-ns)
+                                          (scrim--repl-get-all-namespaced-symbols)))
+                                t)
+                               nil nil nil nil
+                               default-symbol))
+            "(clojure.test/run-test %s)"
+            "No test near point")
+
+(defun scrim-send-run-tests ()
+  "Send (clojure.test/run-tests) to the REPL."
+  (interactive nil scrim-mode scrim-minor-mode)
+  (scrim--send (scrim-proc) "(clojure.test/run-tests)"))
+
 
 ;;;; Keymaps
 
@@ -940,6 +973,9 @@ string."
 
     (define-key map (kbd "C-c C-M-e") #'scrim-send-pst)
     (define-key map (kbd "C-c p")     #'scrim-send-pp)
+
+    (define-key map (kbd "C-c t")     #'scrim-send-run-test)
+    (define-key map (kbd "C-c T")     #'scrim-send-run-tests)
 
     map))
 
